@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qingsong.ai.mapper.model.ModelSourceMapper">
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id
+        , source_code, source_name, api_base_url, is_active, sort_order, create_date, update_date
+    </sql>
+
+    <!-- 根据来源编码查找模型来源 -->
+    <select id="findBySourceCode" resultType="com.qingsong.ai.entity.po.model.ModelSource">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM model_source
+        WHERE source_code = #{sourceCode}
+    </select>
+
+    <!-- 查找所有启用的模型来源 -->
+    <select id="findByIsActiveTrue" resultType="com.qingsong.ai.entity.po.model.ModelSource">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM model_source
+        WHERE is_active = true
+        ORDER BY sort_order ASC
+    </select>
+
+    <!-- 根据排序查找启用的模型来源 -->
+    <select id="findByIsActiveTrueOrderBySortOrderAsc" resultType="com.qingsong.ai.entity.po.model.ModelSource">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM model_source
+        WHERE is_active = true
+        ORDER BY sort_order ASC
+    </select>
+
+    <!-- 统计启用的模型来源数量 -->
+    <select id="countByIsActiveTrue" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM model_source
+        WHERE is_active = true
+    </select>
+
+</mapper>

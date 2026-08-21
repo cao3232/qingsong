@@ -1,0 +1,137 @@
+server:
+  port: 8088
+rocketmq:
+  name-server: 192.168.1.52:9876
+  producer:
+    group: order-producer-group # RocketMQ 强制要求指定 Producer Group
+spring:
+  application:
+    name: qingsong-backend
+  config:
+    import:
+      - classpath:secrets.yml   # 集中密钥文件（勿提交，模板见 secrets.example.yml）
+      - classpath:ai.yml
+
+  freemarker:
+    template-loader-path: classpath:/templates/,classpath:/pdf/
+    suffix: .ftl
+    cache: false  # 开发环境下设为false，方便调试
+    charset: UTF-8
+    content-type: text/html
+    expose-request-attributes: true
+    expose-session-attributes: true
+    request-context-attribute: req
+  
+  cache:
+    type: redis
+    cache-names:
+      - topic:content
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+  mail:
+    host: smtp.qq.com
+    port: 465 # QQ邮箱 SMTP 端口 (SSL)
+    username: ${MAIL_USERNAME}    # 你的QQ邮箱地址（值见 secrets.yml）
+    password: ${MAIL_PASSWORD}    # 你的QQ邮箱授权码 (不是密码!)（值见 secrets.yml）
+    protocol: smtp
+    default-encoding: UTF-8 # 默认编码
+    properties:
+      mail:
+        smtp:
+          auth: true # 启用身份验证
+          ssl:
+            enable: true # 开启 SSL (对于端口 465)
+          debug: true
+
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/big_event?serverTimezone=Asia/Shanghai&useSSL=false&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&transformedBitIsBoolean=true&tinyInt1isBit=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&useServerPrepStmts=false
+    username: ${MYSQL_USERNAME}    # 值见 secrets.yml
+    password: ${MYSQL_PASSWORD}    # 值见 secrets.yml
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      database: 0
+      password: ${REDIS_PASSWORD}    # 值见 secrets.yml
+
+  # Flowable 工作流引擎：spring.flowable.enabled 才是有效开关（顶层 flowable.enabled 不生效），暂保持禁用
+  flowable:
+    enabled: false
+
+
+logging:
+  level:
+    org.springframework.ai: debug
+    com.qingsong.ai: debug
+    com.baomidou.mybatisplus: debug
+    org.springframework.web.reactive.function.client.ExchangeFunctions: TRACE
+    reactor.netty.http.client: DEBUG
+    io.netty: DEBUG
+mybatis-plus:
+  mapper-locations:
+    - classpath:mapper/**/*.xml
+
+
+feishu:
+  secret: ${FEISHU_SECRET}    # 值见 secrets.yml
+  url: ${FEISHU_URL}    # 值见 secrets.yml
+
+# 邮件收件人（按用途区分，值见 secrets.yml）
+mail:
+  export-to: ${MAIL_EXPORT_TO}    # 聊天「发送邮件」导出 / AI 工具 sendEmail 的收件人
+  agent-to: ${MAIL_AGENT_TO}      # EmailTool 模板邮件收件人
+  job-to: ${MAIL_JOB_TO}          # 定时任务（TimeJob / TopicJob）收件人
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+# MinIO
+minio:
+  endpoint: http://127.0.0.1:9032/
+  access-key: ${MINIO_ACCESS_KEY}    # 值见 secrets.yml
+  secret-key: ${MINIO_SECRET_KEY}    # 值见 secrets.yml
+  default-bucket: qingsong # 默认桶（启动时自动创建；知识库用独立的 knowledge-file 桶）
+  default-expiry: 3600 # 临时访问连接1h有效 60 * 6
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+chat:
+  history:
+    redis-migration:
+      enabled: true
+
+############## Sa-Token 配置 (文档: https://sa-token.cc) ##############
+sa-token:
+  # token 名称（同时也是 cookie 名称）
+  token-name: satoken
+  # 前端仅通过 satoken 请求头传递 token
+  is-read-body: false
+  is-read-cookie: false
+  # token 有效期（单位：秒） 默认30天，-1 代表永久有效
+  timeout: 2592000
+  # token 最低活跃频率（单位：秒），如果 token 超过此时间没有访问系统就会被冻结，默认-1 代表不限制，永不冻结
+  active-timeout: -1
+  # 是否允许同一账号多地同时登录 （为 true 时允许一起登录, 为 false 时新登录挤掉旧登录）
+  is-concurrent: true
+  # 在多人登录同一账号时，是否共用一个 token （为 true 时所有登录共用一个 token, 为 false 时每次登录新建一个 token）
+  is-share: false
+  # token 风格（默认可取值：uuid、simple-uuid、random-32、random-64、random-128、tik）
+  token-style: uuid
+  # 是否输出操作日志
+  is-log: true

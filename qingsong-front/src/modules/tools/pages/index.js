@@ -1,0 +1,5 @@
+export { default as SystemSettingPage } from './SystemSettingPage.vue'
+export { default as ModelSourcePage } from './ModelSourcePage.vue'
+export { default as ModelManagePage } from './ModelManagePage.vue'
+export { default as RoleManagePage } from './RoleManagePage.vue'
+export { default as UserConfigPage } from './UserConfigPage.vue'

@@ -1,0 +1,38 @@
+# ---------- 运行期产物 ----------
+node_modules/
+dist/
+dist-ssr/
+coverage/
+target/
+*.log
+
+# ---------- 密钥与本地配置(绝不提交) ----------
+secrets.yml
+secrets.*.yml
+*.local
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+*.iml
+
+# ---------- AI / 辅助工具产物 ----------
+.codebuddy/
+.codex/
+.codex-tasks/
+.superpowers/
+.claude/
+.codeverse/
+
+# ---------- 第三方运行期静态资源 ----------
+public/webviewer/
+public/emoji/
+public/emoji-openmoji/
+public/emoji-fluent/
+public/emoji-blob/
+public/emoji-doodle/
+
+# ---------- 数据库备份数据(只留 schema,不留真实数据) ----------
+sql/data-backup.sql
+sql/*-data.sql

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.qingsong.ai.mapper.model.ModelConfigMapper">
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id
+        , name, code, type, model_source, model_order, is_active, created_by, updated_by, create_date, update_date ,is_top
+    </sql>
+
+    <!-- 根据模型ID查找模型配置 -->
+    <select id="findByModelId" resultType="com.qingsong.ai.entity.po.model.ModelConfig">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM model_config
+        WHERE id = #{id}
+    </select>
+
+    <!-- 根据模型类型查找所有活动的模型配置 -->
+    <select id="findByTypeAndIsActiveTrue" resultType="com.qingsong.ai.entity.po.model.ModelConfig">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM model_config
+        WHERE type = #{type} AND is_active = true
+        ORDER BY model_order ASC
+    </select>
+
+    <!-- 根据模型来源查找所有活动的模型配置 -->
+    <select id="findBySource" resultType="com.qingsong.ai.entity.po.model.ModelConfig">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM model_config
+        WHERE model_source = #{source}
+        ORDER BY model_order ASC
+    </select>
+
+    <!-- 查找所有活动的模型配置 -->
+    <select id="findByIsActiveTrue" resultType="com.qingsong.ai.entity.po.model.ModelConfig">
+        SELECT mc.*
+        FROM model_config mc
+                 left join model_source ms on mc.model_source = ms.id
+        WHERE ms.is_active = true
+          AND mc.is_active = true
+        ORDER BY mc.model_order ASC
+    </select>
+
+    <!-- 根据模型类型统计活动的模型数量 -->
+    <select id="countByTypeAndIsActiveTrue" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM model_config
+        WHERE type = #{type}
+          AND is_active = true
+    </select>
+
+    <select id="selectChangeTopList" resultType="com.qingsong.ai.entity.po.model.ModelConfig"
+            parameterType="java.lang.Long">
+        -- 查询目标记录和同一来源下当前置顶的记录
+        SELECT *
+        FROM model_config mc1
+        WHERE is_active = true
+          AND (
+            id = #{id}
+                OR (
+                is_top = TRUE
+                    AND model_source = (SELECT model_source
+                                        FROM model_config
+                                        WHERE id = #{id})
+                )
+            )
+    </select>
+
+</mapper>

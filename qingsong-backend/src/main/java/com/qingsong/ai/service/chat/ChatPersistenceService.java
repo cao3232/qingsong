@@ -1,0 +1,35 @@
+package com.qingsong.ai.service.chat;
+
+import com.qingsong.ai.entity.po.ChatHistory;
+import com.qingsong.ai.entity.vo.MessageVO;
+import org.springframework.ai.chat.messages.Message;
+
+import java.util.List;
+import java.util.Map;
+
+public interface ChatPersistenceService {
+
+    void ensureSession(String bizType, String roleCode, String sessionNo, String title);
+
+    void appendUserMessage(String bizType, String roleCode, String sessionNo, String content);
+
+    void appendAssistantMessage(String bizType, String roleCode, String sessionNo, String content, String status, String chatModel);
+
+    List<ChatHistory> getChatHistories(String bizType, String roleCode);
+
+    List<MessageVO> getChatMessages(String bizType, String roleCode, String sessionNo);
+
+    List<Message> getAllMessages(String sessionNo);
+
+    List<Message> getRecentMessages(String sessionNo, int limit);
+
+    boolean deleteSession(String bizType, String roleCode, String sessionNo);
+
+    void updateSessionTitle(String bizType, String roleCode, String sessionNo, String title);
+
+    Map<String, String> selectChatModelByIds(List<String> assistantIds);
+
+    void deleteLastRound(String sessionNo);
+
+    void validateRetry(String sessionNo, String messageId, String prompt);
+}

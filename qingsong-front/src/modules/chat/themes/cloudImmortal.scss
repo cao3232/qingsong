@@ -1,0 +1,605 @@
+.ai-chat-view.chat-skin-cloud-immortal {
+  --immortal-ink: #183d46;
+  --immortal-gold: #b38a3d;
+  position: relative;
+  isolation: isolate;
+  background: #b8cfce url('../../../assets/chat-themes/cloud-immortal/cloud-mountains-desktop.webp') center / cover no-repeat !important;
+  background-image: url('../../../assets/chat-themes/cloud-immortal/cloud-mountains-desktop.webp') !important;
+  background-position: center !important;
+  background-size: cover !important;
+  background-repeat: no-repeat !important;
+  color: var(--chat-text, var(--immortal-ink));
+  font-family: var(--chat-font-family);
+}
+
+.chat-skin-cloud-immortal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(241, 246, 237, 0.38), rgba(219, 233, 228, 0.78) 62%, rgba(196, 219, 215, 0.9));
+}
+
+.chat-skin-cloud-immortal .main-chat-area,
+.chat-skin-cloud-immortal .chat-main {
+  background: transparent !important;
+}
+
+.chat-skin-cloud-immortal .chat-background-color {
+  background: linear-gradient(180deg, rgba(242, 247, 239, .2), rgba(216, 232, 227, .46)) !important;
+}
+
+.chat-skin-cloud-immortal .chat-background-image {
+  opacity: .12 !important;
+  mix-blend-mode: multiply;
+}
+
+.chat-skin-cloud-immortal .immortal-scene,
+.chat-skin-cloud-immortal .immortal-mist-far,
+.chat-skin-cloud-immortal .immortal-mist-near {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.chat-skin-cloud-immortal .immortal-scene { z-index: -1; }
+.chat-skin-cloud-immortal .immortal-gate-watermark,
+.chat-skin-cloud-immortal .immortal-taiji-mark,
+.chat-skin-cloud-immortal .immortal-bagua,
+.chat-skin-cloud-immortal .immortal-cloud-seal,
+.chat-skin-cloud-immortal .immortal-rune {
+  position: absolute;
+  pointer-events: none;
+  color: rgba(23, 60, 66, .13);
+  user-select: none;
+}
+.chat-skin-cloud-immortal .immortal-gate-watermark {
+  top: 12%;
+  bottom: 8%;
+  left: 50%;
+  width: clamp(220px, 30vw, 430px);
+  transform: translateX(-50%);
+  border: 1px solid rgba(179, 138, 61, .2);
+  border-top-width: 5px;
+  background:
+    linear-gradient(90deg, transparent 12%, rgba(23, 60, 66, .08) 12% 13%, transparent 13% 87%, rgba(23, 60, 66, .08) 87% 88%, transparent 88%),
+    linear-gradient(90deg, transparent 48%, rgba(179, 138, 61, .13) 48% 52%, transparent 52%);
+  box-shadow: inset 0 0 0 5px rgba(248, 241, 215, .12), 0 0 28px rgba(23, 60, 66, .04);
+  opacity: .72;
+}
+.chat-skin-cloud-immortal .immortal-gate-watermark::before,
+.chat-skin-cloud-immortal .immortal-gate-watermark::after {
+  content: '';
+  position: absolute;
+  top: -18px;
+  width: 58%;
+  height: 18px;
+  border-top: 2px solid rgba(179, 138, 61, .27);
+}
+.chat-skin-cloud-immortal .immortal-gate-watermark::before { right: 50%; transform: skewX(-38deg); transform-origin: right bottom; }
+.chat-skin-cloud-immortal .immortal-gate-watermark::after { left: 50%; transform: skewX(38deg); transform-origin: left bottom; }
+.chat-skin-cloud-immortal .immortal-taiji-mark {
+  top: 35%;
+  left: 50%;
+  width: 126px;
+  height: 126px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(23, 60, 66, .19);
+  border-radius: 50%;
+  opacity: .48;
+}
+.chat-skin-cloud-immortal .immortal-taiji-mark::before {
+  content: '☯';
+  display: block;
+  font: 108px/126px 'Noto Serif SC', 'Songti SC', serif;
+  text-align: center;
+}
+.chat-skin-cloud-immortal .immortal-bagua {
+  top: 35%;
+  left: 50%;
+  width: 188px;
+  height: 188px;
+  transform: translate(-50%, -50%) rotate(22.5deg);
+  border: 1px dashed rgba(179, 138, 61, .27);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 12px rgba(23, 60, 66, .025);
+  opacity: .52;
+}
+.chat-skin-cloud-immortal .immortal-bagua::before {
+  content: '☰  ☱  ☲  ☳  ☴  ☵  ☶  ☷';
+  position: absolute;
+  inset: 14px;
+  font: 18px/1.4 'Noto Serif SC', 'Songti SC', serif;
+  text-align: center;
+  word-spacing: 8px;
+}
+.chat-skin-cloud-immortal .immortal-cloud-seal {
+  top: 18%;
+  right: 5%;
+  width: 28px;
+  padding: 8px 5px;
+  border: 1px solid rgba(179, 138, 61, .3);
+  color: rgba(23, 60, 66, .18);
+  font: 17px/1.35 'Noto Serif SC', 'Songti SC', serif;
+  text-align: center;
+  box-shadow: inset 0 0 0 2px rgba(248, 241, 215, .22);
+  opacity: .72;
+}
+.chat-skin-cloud-immortal .immortal-cloud-seal::before { content: '云篆玄章'; }
+.chat-skin-cloud-immortal .immortal-rune {
+  bottom: 14%;
+  left: 4%;
+  width: 34px;
+  height: 112px;
+  border: 1px solid rgba(179, 138, 61, .24);
+  background:
+    linear-gradient(135deg, transparent 42%, rgba(23, 60, 66, .14) 43% 48%, transparent 49%) center / 16px 16px,
+    rgba(248, 241, 215, .12);
+  box-shadow: inset 0 0 0 3px rgba(179, 138, 61, .07);
+  opacity: .65;
+}
+.chat-skin-cloud-immortal .immortal-rune::before {
+  content: '敕';
+  display: block;
+  color: rgba(23, 60, 66, .19);
+  font: 18px/30px 'Noto Serif SC', 'Songti SC', serif;
+  text-align: center;
+}
+.chat-skin-cloud-immortal .immortal-mist-far,
+.chat-skin-cloud-immortal .immortal-mist-near {
+  inset: auto -10% 8%;
+  height: 38%;
+  background: url('../../../assets/chat-themes/cloud-immortal/mist-far.webp') center / auto 100% repeat-x;
+  opacity: 0.34;
+  animation: cloud-immortal-far 90s linear infinite;
+}
+.chat-skin-cloud-immortal .immortal-mist-near {
+  bottom: -2%;
+  height: 30%;
+  background-image: url('../../../assets/chat-themes/cloud-immortal/mist-near.webp');
+  opacity: 0.46;
+  animation-duration: 60s;
+}
+
+.chat-skin-cloud-immortal .role-drawer-host,
+.chat-skin-cloud-immortal .chat-sidebar,
+.chat-skin-cloud-immortal .chat-header,
+.chat-skin-cloud-immortal .input-area {
+  background: var(--chat-panel);
+  border-color: var(--chat-bevel-frame-light) var(--chat-bevel-frame-dark) var(--chat-bevel-frame-dark) var(--chat-bevel-frame-light);
+  box-shadow: var(--chat-shadow), inset 0 1px 0 rgba(255,255,255,.6);
+}
+
+.chat-skin-cloud-immortal .main-chat-area,
+.chat-skin-cloud-immortal .role-drawer-host,
+.chat-skin-cloud-immortal .chat-main {
+  position: relative;
+}
+
+.chat-skin-cloud-immortal .main-chat-area::before,
+.chat-skin-cloud-immortal .main-chat-area::after,
+.chat-skin-cloud-immortal .role-drawer-host::before {
+  content: '';
+  position: absolute;
+  z-index: 4;
+  width: 26px;
+  height: 26px;
+  pointer-events: none;
+  opacity: .72;
+  border-color: var(--immortal-gold);
+  animation: cloud-immortal-gold-breathe 7s ease-in-out infinite;
+}
+.chat-skin-cloud-immortal .main-chat-area::before,
+.chat-skin-cloud-immortal .role-drawer-host::before {
+  top: 5px;
+  left: 5px;
+  border-top: 1px solid var(--immortal-gold);
+  border-left: 1px solid var(--immortal-gold);
+}
+.chat-skin-cloud-immortal .main-chat-area::after {
+  right: 5px;
+  bottom: 5px;
+  border-right: 1px solid var(--immortal-gold);
+  border-bottom: 1px solid var(--immortal-gold);
+}
+
+.chat-skin-cloud-immortal .role-drawer-host,
+.chat-skin-cloud-immortal .chat-sidebar {
+  background-image: url('../../../assets/chat-themes/cloud-immortal/jade-texture.webp');
+  background-size: 256px;
+}
+.chat-skin-cloud-immortal .role-drawer .rail,
+.chat-skin-cloud-immortal .role-drawer .surface {
+  background: rgba(232, 242, 236, .94) url('../../../assets/chat-themes/cloud-immortal/jade-texture.webp') center / 256px;
+  border-color: #eaf2e8 #527b7d #527b7d #eaf2e8;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 8px 20px rgba(30,74,77,.14);
+}
+.chat-skin-cloud-immortal .role-drawer .panel { filter: drop-shadow(0 10px 18px rgba(30,74,77,.16)); }
+.chat-skin-cloud-immortal .role-drawer .card,
+.chat-skin-cloud-immortal .role-drawer .rank-card {
+  background: rgba(255,253,243,.78);
+  border: 1px solid #b8ccc3;
+  border-radius: 4px;
+  box-shadow: inset 3px 0 0 rgba(179,138,61,.24);
+}
+.chat-skin-cloud-immortal .role-drawer .card:hover,
+.chat-skin-cloud-immortal .role-drawer .rank-card:hover {
+  background: rgba(222,239,232,.92);
+  border-color: var(--chat-accent);
+}
+.chat-skin-cloud-immortal .role-drawer .card.selected,
+.chat-skin-cloud-immortal .role-drawer .rank-card.selected {
+  background: linear-gradient(135deg, rgba(194,224,214,.96), rgba(229,241,233,.94));
+  border-color: var(--chat-accent);
+  box-shadow: inset 3px 0 0 var(--immortal-gold), inset 0 0 12px rgba(47,125,120,.12);
+}
+.chat-skin-cloud-immortal .role-drawer .empty {
+  min-height: 116px;
+  padding: 62px 12px 18px;
+  color: var(--chat-text-muted);
+  text-align: center;
+  border: 1px dashed rgba(179,138,61,.5);
+  background:
+    linear-gradient(150deg, transparent 54%, rgba(49,91,102,.12) 55% 60%, transparent 61%),
+    linear-gradient(30deg, transparent 58%, rgba(47,125,120,.1) 59% 64%, transparent 65%),
+    rgba(255,253,243,.55);
+}
+.chat-skin-cloud-immortal .chat-sidebar { border: 1px solid var(--chat-bevel-frame-dark); }
+.chat-skin-cloud-immortal .chat-sidebar .chat-item {
+  background: linear-gradient(90deg, rgba(255,253,243,.86), rgba(225,238,231,.78));
+  border: 1px solid #b7cbc2;
+  border-radius: 3px;
+  box-shadow: inset 3px 0 0 rgba(179,138,61,.26);
+}
+.chat-skin-cloud-immortal .chat-sidebar .chat-item:hover {
+  background: linear-gradient(90deg, rgba(235,244,235,.96), rgba(207,230,222,.92));
+  border-color: #70a9a0;
+}
+.chat-skin-cloud-immortal .chat-sidebar .chat-item.active {
+  background: linear-gradient(135deg, #b9dcd2, #dcece4);
+  color: var(--chat-accent);
+  border-color: var(--chat-accent);
+  box-shadow: inset 3px 0 0 var(--immortal-gold), inset 0 0 14px rgba(47,125,120,.15);
+}
+.chat-skin-cloud-immortal .chat-sidebar .chat-item.active .chat-title,
+.chat-skin-cloud-immortal .chat-sidebar .chat-item.active .chat-time,
+.chat-skin-cloud-immortal .chat-sidebar .chat-item.active .chat-role,
+.chat-skin-cloud-immortal .chat-sidebar .chat-item.active .chat-avatar {
+  color: var(--chat-text) !important;
+}
+.chat-skin-cloud-immortal .chat-sidebar .chat-item.active .chat-role { background: rgba(255,253,243,.58); }
+
+.chat-skin-cloud-immortal .chat-header {
+  position: relative;
+  background: linear-gradient(135deg, var(--chat-titlebar-start), var(--chat-titlebar-end));
+  color: var(--chat-titlebar-text);
+  border-bottom: 1px solid var(--immortal-gold);
+}
+.chat-skin-cloud-immortal .chat-header::after {
+  content: '玄门问道 · 云篆清音';
+  position: absolute;
+  right: 50%;
+  bottom: 2px;
+  transform: translateX(50%);
+  color: rgba(248, 241, 215, .5);
+  font: 10px/1 'Noto Serif SC', 'Songti SC', serif;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.chat-skin-cloud-immortal .chat-header button,
+.chat-skin-cloud-immortal .chat-header .model-selector,
+.chat-skin-cloud-immortal .chat-header .search-input { color: inherit; border-color: var(--chat-titlebar-separator); background: rgba(255,255,255,.1); }
+.chat-skin-cloud-immortal .chat-header .role-badge,
+.chat-skin-cloud-immortal .chat-header .model-select,
+.chat-skin-cloud-immortal .chat-header .chat-search {
+  min-height: 32px;
+  box-sizing: border-box;
+  color: #fffdf1;
+  background: linear-gradient(180deg, rgba(255,253,241,.16), rgba(207,228,220,.09));
+  border: 1px solid rgba(211,174,91,.5);
+  border-radius: 4px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
+}
+.chat-skin-cloud-immortal .chat-header .role-badge {
+  padding: 4px 9px;
+  color: #fffdf1;
+}
+.chat-skin-cloud-immortal .chat-header .role-badge:hover {
+  background: rgba(220,236,228,.2);
+  border-color: #d3ae5b;
+}
+.chat-skin-cloud-immortal .chat-header .model-select {
+  height: 32px;
+  padding: 0 28px 0 9px;
+  background: #244e55;
+  color: #f8f1d7;
+  border: 1px solid #e2cf91;
+  box-shadow: inset 0 1px 0 rgba(248, 241, 215, .12), 0 2px 6px rgba(9, 31, 34, .2);
+}
+.chat-skin-cloud-immortal .chat-header .model-select:disabled {
+  background: #315a60;
+  color: rgba(248, 241, 215, .58);
+  border-color: rgba(226, 207, 145, .52);
+  cursor: not-allowed;
+  opacity: 1;
+}
+.chat-skin-cloud-immortal .chat-header .model-select option {
+  background: #173c42;
+  color: #f8f1d7;
+}
+.chat-skin-cloud-immortal .chat-header .model-select option:checked,
+.chat-skin-cloud-immortal .chat-header .model-select option:hover {
+  background: #e2cf91;
+  color: #173c42;
+}
+.chat-skin-cloud-immortal .chat-header .chat-search {
+  height: 32px;
+  padding: 0 7px;
+}
+.chat-skin-cloud-immortal .chat-header .chat-search .search-input {
+  min-width: 72px;
+  height: 30px;
+  padding: 0 4px;
+  color: #fffdf1;
+  background: transparent;
+  border: 0;
+}
+.chat-skin-cloud-immortal .chat-header .chat-search .search-input::placeholder { color: rgba(255,253,241,.68); }
+.chat-skin-cloud-immortal .chat-header .chat-search:focus-within,
+.chat-skin-cloud-immortal .chat-header .model-select:focus {
+  border-color: #e0c477;
+  outline: 2px solid rgba(224,196,119,.18);
+  outline-offset: 1px;
+}
+
+.chat-skin-cloud-immortal .messages-area { background: transparent; }
+.chat-skin-cloud-immortal .messages {
+  background: rgba(224, 237, 232, .76);
+  box-shadow: inset 0 0 36px rgba(54, 92, 89, .12);
+  scrollbar-color: var(--chat-scrollbar-thumb) var(--chat-scrollbar-track);
+}
+/* 空状态：透出底层仙门场景（云雾/太极/八卦/云篆），避免被不透明青色背景盖住 */
+/* 注意：@media(max-width:768px) 里有一条同权重的 .chat-skin-cloud-immortal .messages 会覆盖此规则，
+   故这里加 !important 确保所有宽度下空状态都透明，才能真正露出仙门图片背景。 */
+.chat-skin-cloud-immortal .messages:empty {
+  background: transparent !important;
+  box-shadow: none;
+}
+/* 聊天记录侧边栏空状态图标：金色圆形迎客，避免灰色气泡像孤立的 > */
+.chat-skin-cloud-immortal .empty-placeholder .empty-icon {
+  background: rgba(255, 253, 243, .7);
+  color: var(--immortal-gold);
+  border: 1px solid rgba(179, 138, 61, .5);
+  box-shadow: 0 0 12px rgba(179, 138, 61, .25);
+}
+.chat-skin-cloud-immortal .empty-placeholder .empty-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.chat-skin-cloud-immortal .messages::-webkit-scrollbar { width: var(--chat-scrollbar-size); }
+.chat-skin-cloud-immortal .messages::-webkit-scrollbar-track { background: var(--chat-scrollbar-track); border-color: var(--chat-scrollbar-border); }
+.chat-skin-cloud-immortal .messages::-webkit-scrollbar-thumb { background: var(--chat-scrollbar-thumb); border: 2px solid var(--chat-scrollbar-track); border-radius: 8px; }
+
+.chat-skin-cloud-immortal .ai-message .user-text,
+.chat-skin-cloud-immortal .assistant-message .message-body > .ai-text {
+  background-color: #fffdf3;
+  background-image:
+    url('../../../assets/chat-themes/cloud-immortal/paper-texture.webp'),
+    var(--chat-ai-bubble-bg);
+  background-blend-mode: soft-light, normal;
+  background-size: 256px, 100% 100%;
+  background-repeat: repeat, no-repeat;
+  color: var(--chat-ai-bubble-text);
+  border: 1px solid var(--chat-ai-bubble-border);
+  border-radius: 3px 10px 10px 10px;
+  box-shadow: 0 5px 14px var(--chat-ai-bubble-shadow);
+}
+.chat-skin-cloud-immortal .ai-message.user-message .user-text {
+  background-color: #c5e2d9;
+  background-image:
+    url('../../../assets/chat-themes/cloud-immortal/jade-texture.webp'),
+    var(--chat-user-bubble-bg);
+  background-blend-mode: soft-light, normal;
+  background-size: 256px, 100% 100%;
+  background-repeat: repeat, no-repeat;
+  color: var(--chat-user-bubble-text);
+  border-color: var(--chat-user-bubble-border);
+  border-radius: 10px 3px 10px 10px;
+}
+.chat-skin-cloud-immortal .message-status-banner.error {
+  background: #f8e1d8;
+  border: 1px solid var(--chat-danger);
+  color: var(--chat-danger-text);
+}
+.chat-skin-cloud-immortal .ai-generating,
+.chat-skin-cloud-immortal .ai-empty,
+.chat-skin-cloud-immortal .empty-placeholder,
+.chat-skin-cloud-immortal .empty-kb,
+.chat-skin-cloud-immortal .tools-empty-state {
+  border: 1px dashed rgba(179,138,61,.52);
+  color: var(--chat-text-muted);
+  background:
+    linear-gradient(154deg, transparent 56%, rgba(49,91,102,.12) 57% 62%, transparent 63%),
+    linear-gradient(26deg, transparent 61%, rgba(47,125,120,.1) 62% 67%, transparent 68%),
+    rgba(255,253,243,.6);
+}
+.chat-skin-cloud-immortal .empty-placeholder .empty-icon,
+.chat-skin-cloud-immortal .empty-kb .empty-icon,
+.chat-skin-cloud-immortal .tools-empty-state svg { color: var(--chat-accent); opacity: .72; }
+.chat-skin-cloud-immortal .ai-generating .gen-dot { background: var(--chat-accent); }
+.chat-skin-cloud-immortal .ai-generating .gen-text { color: var(--chat-text-muted); }
+.chat-skin-cloud-immortal .message-avatar {
+  flex: 0 0 44px;
+  width: 44px;
+  min-width: 44px;
+  align-self: flex-start;
+  line-height: 1;
+}
+.chat-skin-cloud-immortal .message-avatar > .avatar-container {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  max-width: 44px;
+  max-height: 44px;
+  aspect-ratio: 1;
+  align-self: flex-start;
+  box-sizing: border-box;
+  overflow: hidden;
+  line-height: 1;
+  border: 2px solid var(--immortal-gold);
+  box-shadow: 0 0 0 2px rgba(255,253,241,.8);
+}
+.chat-skin-cloud-immortal .avatar-container > .avatar-image {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.chat-skin-cloud-immortal .reasoning-block { background: rgba(225, 238, 233, .86); border-color: var(--immortal-gold); border-radius: 3px 10px 10px 10px; }
+.chat-skin-cloud-immortal .reasoning-toggle { color: var(--chat-accent); }
+.chat-skin-cloud-immortal .message-actions .action-btn { background: rgba(255,253,243,.78); border-color: #b5cdc3; color: var(--chat-text-muted); border-radius: 4px; }
+.chat-skin-cloud-immortal .message-actions .action-btn:hover { color: var(--chat-accent); border-color: var(--chat-accent); }
+.chat-skin-cloud-immortal .ai-text { color: var(--chat-markdown-text); }
+.chat-skin-cloud-immortal .ai-text h1,
+.chat-skin-cloud-immortal .ai-text h2,
+.chat-skin-cloud-immortal .ai-text h3 { color: var(--chat-markdown-heading); border-color: rgba(179,138,61,.45); }
+.chat-skin-cloud-immortal .ai-text blockquote { background: var(--chat-blockquote-bg); border-left-color: var(--chat-blockquote-border); color: var(--chat-blockquote-text); }
+.chat-skin-cloud-immortal .ai-text table { background: var(--chat-table-bg); border-color: var(--chat-table-border); }
+.chat-skin-cloud-immortal .ai-text th { background: var(--chat-table-head); color: var(--chat-table-head-text); }
+.chat-skin-cloud-immortal .ai-text tr:nth-child(even) { background: var(--chat-table-stripe); }
+.chat-skin-cloud-immortal .ai-text a { color: var(--chat-link); }
+.chat-skin-cloud-immortal .ai-text .image-wrapper,
+.chat-skin-cloud-immortal .ai-text .mermaid-block,
+.chat-skin-cloud-immortal .ai-text .math-block {
+  background: rgba(255,253,243,.78);
+  border: 1px solid rgba(179,138,61,.48);
+  box-shadow: inset 0 0 18px rgba(47,125,120,.06), 0 4px 12px rgba(30,74,77,.08);
+}
+.chat-skin-cloud-immortal .ai-text .image-wrapper { border-radius: 4px; }
+.chat-skin-cloud-immortal .ai-text .mermaid-block { background: rgba(232,241,234,.84); }
+.chat-skin-cloud-immortal .ai-text .math-block,
+.chat-skin-cloud-immortal .ai-text .katex { color: var(--chat-markdown-heading); }
+.chat-skin-cloud-immortal pre { background: #173139; color: var(--chat-code-text); border: 1px solid #315b66; }
+.chat-skin-cloud-immortal code:not(pre code) { background: var(--chat-inline-code-bg); border-color: var(--chat-inline-code-border); color: var(--chat-inline-code-text); }
+
+.chat-skin-cloud-immortal .input-area { background: var(--chat-input-bg); border-top-color: var(--immortal-gold); }
+.chat-skin-cloud-immortal .input-container { background: var(--chat-surface); border-color: #8eaca8; border-radius: 3px 3px 10px 10px; background-image: url('../../../assets/chat-themes/cloud-immortal/paper-texture.webp'); }
+.chat-skin-cloud-immortal .message-input { background: transparent; color: var(--chat-surface-text); }
+.chat-skin-cloud-immortal .action-buttons-row { background: rgba(214, 231, 225, .82); border-color: #b5cdc3; }
+.chat-skin-cloud-immortal .action-icon-btn { background: rgba(255,253,243,.84); border-color: #8eaca8; border-radius: 4px; }
+.chat-skin-cloud-immortal .send-button {
+  background: var(--chat-send-bg);
+  border-color: var(--immortal-gold);
+  border-radius: 4px;
+}
+.chat-skin-cloud-immortal .send-button:hover:not(:disabled) {
+  background: var(--chat-send-bg-hover);
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 7px 16px rgba(47,125,120,.28), 0 0 0 2px rgba(179,138,61,.22);
+}
+.chat-skin-cloud-immortal .send-button:active:not(:disabled) {
+  transform: translateY(0) scale(.97);
+}
+.chat-skin-cloud-immortal .right-actions { position: relative; }
+.chat-skin-cloud-immortal .right-actions.send-feedback::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  z-index: 2;
+  width: 6px;
+  height: 6px;
+  pointer-events: none;
+  border-radius: 50%;
+  background: #f6dfa0;
+  box-shadow: 0 0 4px #f6dfa0, 0 0 10px rgba(211,174,91,.72);
+  animation: cloud-immortal-send-flash .45s ease-out;
+}
+
+body[data-chat-skin='cloud-immortal'] .n-popover.chat-workspace-popover {
+  --n-color: #173c42;
+  --n-text-color: #f8f1d7;
+  --n-border-color: #e2cf91;
+  --chat-panel: #173c42;
+  --chat-panel-hover: #244e55;
+  --chat-surface: #244e55;
+  --chat-text: #f8f1d7;
+  --chat-text-muted: rgba(248, 241, 215, .68);
+  --chat-accent: #e2cf91;
+  --chat-text-on-accent: #173c42;
+  --chat-bevel-light: #e2cf91;
+  --chat-bevel-shadow: #0d2d32;
+  background: #173c42;
+  color: #f8f1d7;
+  border: 1px solid #e2cf91;
+  box-shadow: 0 12px 30px rgba(9, 31, 34, .38);
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', Georgia, serif;
+}
+body[data-chat-skin='cloud-immortal'] .chat-workspace-popover-content {
+  background: #173c42 !important;
+  color: #f8f1d7 !important;
+  border: 1px solid #e2cf91 !important;
+  box-shadow: inset 0 0 0 1px rgba(248, 241, 215, .08), 0 12px 30px rgba(9, 31, 34, .38) !important;
+}
+
+@keyframes cloud-immortal-far { to { transform: translate3d(-8%, 0, 0); } }
+@keyframes cloud-immortal-near { to { transform: translate3d(10%, 0, 0); } }
+@keyframes cloud-immortal-gold-breathe {
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(179,138,61,0)); }
+  50% { filter: drop-shadow(0 0 5px rgba(179,138,61,.32)); }
+}
+@keyframes cloud-immortal-send-flash {
+  0% { opacity: 0; transform: translate3d(-6px, 6px, 0) scale(.55); }
+  28% { opacity: 1; }
+  100% { opacity: 0; transform: translate3d(12px, -18px, 0) scale(1.15); }
+}
+
+@media (max-width: 1100px) {
+  .chat-skin-cloud-immortal::before { background: linear-gradient(180deg, rgba(241,246,237,.48), rgba(219,233,228,.86)); }
+  .chat-skin-cloud-immortal .immortal-mist-far,
+  .chat-skin-cloud-immortal .immortal-mist-near { opacity: .22; }
+  .chat-skin-cloud-immortal .main-chat-area::before,
+  .chat-skin-cloud-immortal .main-chat-area::after,
+  .chat-skin-cloud-immortal .role-drawer-host::before { width: 16px; height: 16px; opacity: .34; }
+}
+@media (max-width: 768px) {
+  .ai-chat-view.chat-skin-cloud-immortal {
+    background: #b8cfce url('../../../assets/chat-themes/cloud-immortal/cloud-mountains-mobile.webp') center / cover no-repeat !important;
+    background-image: url('../../../assets/chat-themes/cloud-immortal/cloud-mountains-mobile.webp') !important;
+  }
+  .chat-skin-cloud-immortal .immortal-mist-far { display: none; }
+  .chat-skin-cloud-immortal .immortal-mist-near { animation-name: cloud-immortal-near; opacity: .28; }
+  .chat-skin-cloud-immortal .immortal-gate-watermark { top: 17%; bottom: 12%; width: 46vw; opacity: .34; }
+  .chat-skin-cloud-immortal .immortal-taiji-mark { width: 78px; height: 78px; opacity: .24; }
+  .chat-skin-cloud-immortal .immortal-taiji-mark::before { font-size: 66px; line-height: 78px; }
+  .chat-skin-cloud-immortal .immortal-bagua { width: 112px; height: 112px; opacity: .24; }
+  .chat-skin-cloud-immortal .immortal-bagua::before { font-size: 11px; word-spacing: 2px; }
+  .chat-skin-cloud-immortal .immortal-cloud-seal,
+  .chat-skin-cloud-immortal .immortal-rune { opacity: .28; transform: scale(.78); }
+  .chat-skin-cloud-immortal .chat-header::after { opacity: .54; }
+  .chat-skin-cloud-immortal .messages { background: rgba(224,237,232,.88); }
+}
+@media (max-width: 480px) {
+  .chat-skin-cloud-immortal .messages { padding: 10px 8px 14px; }
+  .chat-skin-cloud-immortal .input-area { padding: 4px; }
+  .chat-skin-cloud-immortal .action-icon-btn { width: 28px; height: 27px; }
+  .chat-skin-cloud-immortal .send-button,
+  .chat-skin-cloud-immortal .cancel-button { width: 32px; height: 29px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-skin-cloud-immortal .immortal-gate-watermark,
+  .chat-skin-cloud-immortal .immortal-taiji-mark,
+  .chat-skin-cloud-immortal .immortal-bagua,
+  .chat-skin-cloud-immortal .immortal-cloud-seal,
+  .chat-skin-cloud-immortal .immortal-rune,
+  .chat-skin-cloud-immortal .immortal-mist-far,
+  .chat-skin-cloud-immortal .immortal-mist-near,
+  .chat-skin-cloud-immortal * { animation: none !important; transition-duration: 0s !important; }
+  .chat-skin-cloud-immortal .right-actions.send-feedback::after { animation: none !important; }
+}

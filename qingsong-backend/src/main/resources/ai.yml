@@ -1,0 +1,148 @@
+spring:
+  ai:
+
+    #    mcp:
+    #      client:
+    #        sse:
+    #          connections:
+    #            server1:
+    #              url: http://127.0.0.1:12306
+    #              # 有些实现是 /mcp/sse 或 /sse，按对方 server 暴露的端点来
+    #    mcp:
+    #      client:
+    #        enabled: true
+    ##        type: sse
+    #        request-timeout: 5s
+    ##        sse:
+    ##          connections:
+    ##            server1:
+    ##              url: http://127.0.0.1:12306/mcp
+    mcp:
+      client:
+        enabled: true
+        name: demo-mcp-client
+        version: 1.0.0
+        request-timeout: 60s
+        type: ASYNC
+        toolcallback:
+          enabled: true
+        initialized: false
+        #        streamable-http:
+        #          connections:
+        #            context7:
+        #              url: https://mcp.context7.com
+        #              endpoint: /mcp
+#        sse:
+#          connections:
+#            baidu-maps:
+#              url: https://mcp.map.baidu.com
+#              sse-endpoint: /sse?ak=rxIaymZng1HG7nV9F6jYdibw1aXh0UmZ
+    #            mcp-chrome:
+    #              url: http://127.0.0.1:12306
+    #              sse-endpoint: /mcp?session=mcp
+    #        streamable-http:
+    #          connections:
+    #            mcp-chrome:
+    #                url: http://127.0.0.1:12306
+    #            stdio:
+    #          servers-configuration: classpath:mcp-servers.json
+
+    ##        sse:
+    #          connections:
+    #            server1:
+    #              # 你的在线服务 base url（不带 path）
+    #              url: https://phoenixdna-sogou-search.ms.show
+    #              # SSE 的 MCP 端点 path
+    #              sse-endpoint: /gradio_api/mcp/sse
+    #        stdio:
+    #          connections:
+    #            context7:
+    #              command: npx
+    #              args:
+    #                - -y
+    #                - "@upstash/context7-mcp"
+    #                - "--api-key"
+    #                - ${CONTEXT7_API_KEY}
+    #
+    #        streamable-http:
+    #          connections:
+    #            mcp-chrome:
+    #              url: http://127.0.0.1:12306
+    #              endpoint: /mcp
+
+
+    retry:
+      max-attempts: 5
+      backoff:
+        initial-interval: 2000
+        max-interval: 10000
+
+    openai:
+      # 注意：base-url / api-key 为个人中转配置，迁移时通过 secrets.yml 的 AI_BASE_URL / AI_OPENAI_API_KEY 替换
+      # 如果使用代理/路由服务，请确保：
+      # 1. base-url 指向正确的代理服务
+      # 2. model 名称与目标 API 支持的模型匹配
+      # 3. 如果直接调用 DeepSeek，应使用 deepseek-chat 或 deepseek-reasoner
+      # 4. 如果直接调用 OpenAI，应使用 gpt-4、gpt-3.5-turbo 等
+      # 5. 如果使用 Gemini，应使用 gemini-pro、gemini-1.5-pro 等
+      base-url: ${AI_BASE_URL}
+      api-key: ${AI_OPENAI_API_KEY}
+
+
+      chat:
+        options:
+          # 常用模型示例：
+          # DeepSeek: deepseek-chat, deepseek-reasoner
+          # OpenAI: gpt-4, gpt-3.5-turbo, gpt-4-turbo
+          # Qwen: qwen-max, qwen-plus, qwen-turbo
+          # Gemini: gemini-pro, gemini-1.5-pro, gemini-1.5-flash
+          # 当前模型（通过代理）：gemini-3-pro-high
+          # 阿里 Qwen（OpenAI 兼容接口）：qwen-plus / qwen-max / qwen-turbo / qwen3-*
+          model: gemini-3-pro-high
+          temperature: 0.7
+      embedding:
+        base-url: ${AI_EMBEDDING_BASE_URL}    # 值见 secrets.yml
+        api-key: ${AI_EMBEDDING_API_KEY}    # 值见 secrets.yml
+        options:
+          model: Qwen/Qwen3-Embedding-0.6B
+
+    #        completions-path: /chat/completions
+    #        completions-path: /pg/chat/completions
+    vectorstore:
+      pgvector:
+        datasource:
+          url: jdbc:postgresql://localhost:5432/know-hub
+          username: ${PG_USERNAME}    # 值见 secrets.yml
+          password: ${PG_PASSWORD}    # 值见 secrets.yml
+          table-name: vector_store_1024
+        initialize-schema: true
+        # 向量维度 (需与你的 Embedding 模型一致，如 OpenAI 是 1536)
+        dimensions: 1024
+
+  # ==================== Spring AI Alibaba 能力配置（可选） ====================
+  # 说明：框架（Graph/Agent）默认复用上方 openai 段（自己的 api/key/中转）即可运行，
+  # 无需额外配置。以下仅按需启用扩展能力。
+
+  # dashscope:                # 原生阿里 Qwen：配置 api-key 后自动激活 starter-dashscope
+  #   api-key: sk-你的DashScopeKey
+  #   chat:
+  #     options:
+  #       model: qwen-plus
+
+  # agent-scope:              # AgentScope 集成（starter-agentscope），按需启用
+  #   enabled: false
+
+  # alibaba.rag:              # RAG 增强（starter-rag）需 Elasticsearch，默认停用
+  #   elasticsearch:
+  #     enabled: false
+
+  cloud:
+    # 已引入 spring-ai-alibaba-starter-a2a-nacos / config-nacos，
+    # 若未部署 Nacos 服务端请保持如下停用，避免启动时尝试连接。
+    nacos:
+      discovery:
+        enabled: false
+      config:
+        enabled: false
+    discovery:
+      enabled: false
