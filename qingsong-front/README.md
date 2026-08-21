@@ -1,60 +1,73 @@
-# qingsong-chat-front
+<div align="center">
 
-AI 对话应用前端。**版本 1.0.0**。
+# 🖥 qingsong-chat-front
 
-技术栈:**Vue 3 + TypeScript + Vite + Naive UI + Pinia + Vue Router**。
+**AI 对话应用前端**
 
-## 功能
+![version](https://img.shields.io/badge/version-1.0.0-10b981)
+![vue](https://img.shields.io/badge/Vue-3.4-42b883)
+![vite](https://img.shields.io/badge/Vite-6-646cff)
+![ui](https://img.shields.io/badge/UI-Naive%20UI-18a058)
 
-- **AI 对话**(`/chat`):多角色、SSE 流式输出、会话历史、消息跳转/分享、复盘日报、TTS 朗读、RAG 知识库
-- **PDF 阅读**(`/pdf-reader`):本地 PDF 阅读 + TTS 朗读
-- **系统配置**(`/config/*`):系统主题、模型来源、模型管理、角色管理、用户配置
-- **登录/注册**(`/login` `/register`)
+</div>
 
-## 运行
+---
+
+## ✨ 功能
+
+- 💬 **AI 对话**(`/chat`)— 多角色、SSE 流式输出、会话历史、消息跳转/分享、复盘日报、TTS 朗读、RAG 知识库
+- 📄 **PDF 阅读**(`/pdf-reader`)— 本地 PDF 阅读 + TTS 朗读
+- 🎛 **系统配置**(`/config/*`)— 系统主题、模型来源、模型管理、角色管理、用户配置
+- 🔐 **登录 / 注册**(`/login` `/register`)
+
+## 🚀 快速开始
 
 ```bash
 npm install
-npm run dev      # http://localhost (端口 80,需管理员权限)
+npm run dev          # http://localhost (端口 80,需管理员权限)
+npm run build        # 生产构建 → dist/ (含 type-check)
 ```
 
-后端地址:开发环境走 `vite.config.js` 代理到 `http://localhost:8088`;
+开发环境后端地址由 `vite.config.js` 代理到 `http://localhost:8088`;
 也可通过 `.env` 的 `VITE_API_BASE_URL` 指向远程后端。
 
-生产构建:
+## 🗺 路由
 
-```bash
-npm run build    # 产物在 dist/
-```
+| 路径 | 页面 | 说明 |
+|------|------|------|
+| `/` | HomePage | 应用入口 |
+| `/login` `/register` | BiophilicAuthPage | 登录 / 注册 |
+| `/chat` | AIChatPage | 核心 AI 对话 |
+| `/pdf-reader` | PDFReaderPage | PDF 阅读 + TTS |
+| `/config/*` | SystemSetting / ModelSource / ModelManage / RoleManage / UserConfig | 系统配置 |
 
-## 目录
+## 📁 目录结构
 
 ```
 src/
-├─ modules/chat/         # 对话核心(页面/组件/组合逻辑/服务)
-├─ modules/tools/pages/  # 系统配置页(模型/角色管理)
-├─ modules/agent-lab/    # ChatReviewModal 依赖的 agentApi(对话复盘)
-├─ app/                  # 路由 / 布局 / 首页
-├─ config/ env.js        # 运行期配置
-├─ services/ stores/     # 鉴权 / 主题 / 表情
-└─ shared/               # 头像等公共工具
+├─ modules/chat/          # 对话核心(页面 / 组件 / 组合逻辑 / 服务)
+├─ modules/tools/pages/   # 系统配置页(模型 / 角色管理)
+├─ modules/agent-lab/     # agentApi(对话复盘依赖)
+├─ app/                   # 路由 / 布局 / 首页
+├─ config/ env.js         # 运行期配置
+├─ services/ stores/      # 鉴权 / 主题 / 表情
+└─ shared/                # 公共样式与头像工具
 ```
 
-## 静态资源
-
-- `public/emoji*` 与 `src/assets/chat-themes/cloud-immortal/*.webp` 为生成资源(已 gitignore),
-  本地执行 `npm run copy:emoji` 与 `npm run build:theme-cloud-immortal` 重新生成。
-- PDF 渲染使用 `pdfjs-dist`(动态加载)。
-
-## 测试
+## 🧪 测试
 
 ```bash
-npm run test:chat-sse
-npm run test:pdf-reader
-npm run test:virtual-list
+npm run test:chat-sse          # SSE 解析
+npm run test:pdf-reader        # PDF 文本抽取
+npm run test:virtual-list      # 虚拟列表
 ```
 
-## 配置
+## ⚙️ 配置
 
-- `API_BASE_URL`:`.env` 的 `VITE_API_BASE_URL`(空则走同源代理)
-- TTS 密钥:`.env` 的 `VITE_MIMO_TTS_DEFAULT_KEY`,或运行时 `localStorage('mimo-tts-api-key')`
+| 配置项 | 位置 | 说明 |
+|--------|------|------|
+| `API_BASE_URL` | `.env` → `VITE_API_BASE_URL` | 后端地址(空则走同源代理) |
+| TTS 密钥 | `.env` → `VITE_MIMO_TTS_DEFAULT_KEY` | 或运行时 `localStorage('mimo-tts-api-key')` |
+
+> 📌 `public/emoji*` 与 `src/assets/chat-themes/` 为生成资源(已 gitignore),
+> 本地执行 `npm run copy:emoji`、`npm run build:theme-cloud-immortal` 重新生成。
