@@ -1,22 +1,5 @@
 spring:
   ai:
-
-    #    mcp:
-    #      client:
-    #        sse:
-    #          connections:
-    #            server1:
-    #              url: http://127.0.0.1:12306
-    #              # 有些实现是 /mcp/sse 或 /sse，按对方 server 暴露的端点来
-    #    mcp:
-    #      client:
-    #        enabled: true
-    ##        type: sse
-    #        request-timeout: 5s
-    ##        sse:
-    ##          connections:
-    ##            server1:
-    ##              url: http://127.0.0.1:12306/mcp
     mcp:
       client:
         enabled: true
@@ -27,49 +10,6 @@ spring:
         toolcallback:
           enabled: true
         initialized: false
-        #        streamable-http:
-        #          connections:
-        #            context7:
-        #              url: https://mcp.context7.com
-        #              endpoint: /mcp
-#        sse:
-#          connections:
-#            baidu-maps:
-#              url: https://mcp.map.baidu.com
-#              sse-endpoint: /sse?ak=rxIaymZng1HG7nV9F6jYdibw1aXh0UmZ
-    #            mcp-chrome:
-    #              url: http://127.0.0.1:12306
-    #              sse-endpoint: /mcp?session=mcp
-    #        streamable-http:
-    #          connections:
-    #            mcp-chrome:
-    #                url: http://127.0.0.1:12306
-    #            stdio:
-    #          servers-configuration: classpath:mcp-servers.json
-
-    ##        sse:
-    #          connections:
-    #            server1:
-    #              # 你的在线服务 base url（不带 path）
-    #              url: https://phoenixdna-sogou-search.ms.show
-    #              # SSE 的 MCP 端点 path
-    #              sse-endpoint: /gradio_api/mcp/sse
-    #        stdio:
-    #          connections:
-    #            context7:
-    #              command: npx
-    #              args:
-    #                - -y
-    #                - "@upstash/context7-mcp"
-    #                - "--api-key"
-    #                - ${CONTEXT7_API_KEY}
-    #
-    #        streamable-http:
-    #          connections:
-    #            mcp-chrome:
-    #              url: http://127.0.0.1:12306
-    #              endpoint: /mcp
-
 
     retry:
       max-attempts: 5

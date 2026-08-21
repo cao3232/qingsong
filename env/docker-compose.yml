@@ -18,6 +18,7 @@ services:
       # 启动时自动初始化 chat 相关表
       - ../sql/chat-schema.sql:/docker-entrypoint-initdb.d/01-chat-schema.sql:ro
       - ../sql/config-schema.sql:/docker-entrypoint-initdb.d/02-config-schema.sql:ro
+      - ../sql/seed-data.sql:/docker-entrypoint-initdb.d/03-seed-data.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot123456"]
       interval: 10s

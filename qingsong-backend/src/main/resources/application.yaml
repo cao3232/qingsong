@@ -5,7 +5,7 @@ spring:
     name: qingsong-backend
   config:
     import:
-      - optional:classpath:secrets.yml   # 集中密钥文件（可选；模板见 secrets.example.yml，也可用环境变量注入）
+      - optional:classpath:secrets.example.yml   # 集中密钥文件（可选；模板见 secrets.example.yml，也可用环境变量注入）
       - classpath:ai.yml
 
   freemarker:

@@ -65,9 +65,11 @@ docker compose up -d        # 一键启动 MySQL/Redis/pgvector/MinIO + 前后�
 依赖:JDK 17、Maven、Node 20+、MySQL、Redis、MinIO、PostgreSQL(pgvector)。
 
 ```bash
-# 1️⃣ 数据库:创建 big_event 库,导入表结构
+# 1️⃣ 数据库:创建 big_event 库,导入表结构与种子数据
 #    mysql < sql/chat-schema.sql
 #    mysql < sql/config-schema.sql
+#    mysql < sql/seed-data.sql
+#    (docker compose 首次启动会自动执行,无需手动导入)
 
 # 2️⃣ 后端
 cd qingsong-backend
@@ -80,12 +82,17 @@ npm install
 npm run dev                                                                # :80
 ```
 
+> 🎫 **默认账号**:`admin / admin123`(登录后请尽快修改)。
+> ⚙️ 首次使用请到「系统配置 → 模型来源」填入你的 API Key(种子数据中留空)。
+
 ## 🗄 数据库
 
 | 表 | 类型 | 说明 |
 |----|------|------|
-| `role` / `role_phrases` | 通用配置 | 角色与快捷短语(可导入种子数据) |
-| `model_source` / `model_config` | 通用配置 | 模型来源与模型配置 |
+| `role` / `role_phrases` | 通用配置 | 角色与快捷短语(含种子数据,chat 的角色唯一来源) |
+| `model_source` / `model_config` | 通用配置 | 模型来源与模型配置(含种子,Key 待填) |
+| `user_config` | 通用配置 | 登录账号(含默认账号 `admin/admin123`) |
+| `knowledge_base` | 通用配置 | RAG 知识库 |
 | `ai_chat_session` / `ai_chat_message` | 会话数据 | 会话与消息(仅结构,不含真实数据) |
 | `chat_review` | 会话数据 | 对话复盘(仅结构) |
 

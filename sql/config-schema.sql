@@ -60,3 +60,29 @@ CREATE TABLE IF NOT EXISTS model_config
     update_date DATETIME     NULL COMMENT '更新时间',
     is_top      TINYINT(1)   NULL DEFAULT 0 COMMENT '是否默认置顶'
 ) COMMENT = '模型配置表';
+
+-- 用户配置表(登录/注册,密码为明文比对,见 UserConfigServiceImpl.login)
+CREATE TABLE IF NOT EXISTS user_config
+(
+    id             BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '用户ID',
+    user_name      VARCHAR(128) NULL COMMENT '用户姓名',
+    account        VARCHAR(64)  NOT NULL COMMENT '账号',
+    password       VARCHAR(128) NOT NULL COMMENT '密码(明文)',
+    receive_email  VARCHAR(255) NULL COMMENT '接收邮箱',
+    status         VARCHAR(32)  NULL DEFAULT 'ACTIVE' COMMENT '状态',
+    last_role_name VARCHAR(128) NULL COMMENT '最后对话角色名',
+    created_at     DATETIME     NULL COMMENT '创建时间',
+    updated_at     DATETIME     NULL COMMENT '更新时间',
+    UNIQUE KEY uk_account (account)
+) COMMENT = '用户配置表';
+
+-- 知识库表(RAG 知识库列表,/api/knowledge/bases)
+CREATE TABLE IF NOT EXISTS knowledge_base
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    name        VARCHAR(128)  NOT NULL COMMENT '知识库名称',
+    description VARCHAR(512)  NULL COMMENT '知识库描述',
+    is_active   TINYINT(1)    NULL DEFAULT 1 COMMENT '是否激活:1-激活,0-禁用',
+    create_date DATETIME      NULL COMMENT '创建时间',
+    update_date DATETIME      NULL COMMENT '更新时间'
+) COMMENT = '知识库表';

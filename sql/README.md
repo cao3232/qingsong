@@ -6,10 +6,12 @@
 
 | 表 | 类型 | 备份策略 |
 |----|------|----------|
-| `role` | 通用配置(无隐私) | schema 已提交;数据建议导出(`--data-only`) |
-| `role_phrases` | 通用配置(无隐私) | schema 已提交;数据建议导出 |
-| `model_source` | 通用配置(无隐私) | schema 已提交;数据建议导出(注意 `api_key` 脱敏) |
-| `model_config` | 通用配置(无隐私) | schema 已提交;数据建议导出 |
+| `role` | 通用配置(无隐私) | schema 已提交;含种子数据(seed-data.sql) |
+| `role_phrases` | 通用配置(无隐私) | schema 已提交;含种子数据 |
+| `model_source` | 通用配置(无隐私) | schema 已提交;含种子(api_key 留空待填) |
+| `model_config` | 通用配置(无隐私) | schema 已提交;含种子 |
+| `user_config` | 通用配置(无隐私) | schema 已提交;含默认账号(admin/admin123) |
+| `knowledge_base` | 通用配置(无隐私) | schema 已提交 |
 | `ai_chat_session` | 用户会话 | **仅 schema,禁止导数据** |
 | `ai_chat_message` | 用户消息 | **仅 schema,禁止导数据** |
 | `chat_review` | 对话复盘(含真实对话聚合) | **仅 schema,禁止导数据** |
@@ -17,8 +19,23 @@
 ## 文件
 
 - `chat-schema.sql` — 会话/消息/复盘表结构(来源 `qingsong-backend/src/main/resources/db/chat-schema.sql`)
-- `config-schema.sql` — 角色/短语/模型来源/模型配置表结构(来源实体类)
+- `config-schema.sql` — 角色/短语/模型来源/模型配置 + `user_config`(登录) + `knowledge_base`(RAG)表结构
+- `seed-data.sql` — **初始化种子数据(开箱即用)**:4 个角色 + 快捷短语 + 模型来源/配置 + 默认账号 `admin / admin123`
 - `backup-data.ps1` / `backup-data.sh` — 导出**通用配置表数据**的脚本(产物 `data-backup.sql` 已被 .gitignore 忽略,不会提交)
+
+## 初始化(首次部署)
+
+```bash
+# 方式一:本地 MySQL
+mysql < sql/chat-schema.sql
+mysql < sql/config-schema.sql
+mysql < sql/seed-data.sql
+
+# 方式二:Docker Compose
+# 已自动挂载到 /docker-entrypoint-initdb.d/,首次启动自动执行 01→02→03
+```
+
+> 种子数据后请到「系统配置 → 模型来源」填入你的 API Key,并尽快修改默认账号密码。
 
 ## 如何导出配置数据
 
