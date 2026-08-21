@@ -30,6 +30,20 @@
 
 ## 🚀 快速开始
 
+### 环境要求
+
+| 依赖 | 版本 | 说明 |
+|------|------|------|
+| **JDK** | **17** | 与项目目标一致(**推荐**);父管理 Lombok 1.18.42 兼容 JDK 17–25 |
+| Maven | 3.6+ | — |
+| MySQL | 8.x | 主库 `big_event` |
+| Redis | 6+/7+ | 缓存(:6379) |
+| MinIO | 任意 | 对象存储(:9032) |
+| PostgreSQL | pgvector | RAG 向量库(:5432) |
+
+> ⚠️ **JDK 过新会编译报错**:`NoSuchFieldError: ... JCTree$JCImport does not have member field 'qualid'`
+> 是 Lombok 与 JDK 版本不匹配。请使用 JDK 17 构建(如 `D:\java\Java\jdk17`),或升级 Lombok 以匹配你的 JDK。
+
 ```bash
 cp src/main/resources/secrets.example.yml src/main/resources/secrets.yml
 # 填写 secrets.yml 中的 AI_OPENAI_API_KEY / AI_BASE_URL 等(也可改用环境变量注入)
@@ -61,3 +75,4 @@ docker build -t qingsong-backend .
 | 版本 | 说明 |
 |------|------|
 | 1.0.0 | 首个开源版本 |
+

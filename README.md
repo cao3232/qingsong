@@ -84,6 +84,7 @@ npm run dev                                                                # :80
 
 > 🎫 **默认账号**:`admin / admin123`(登录后请尽快修改)。
 > ⚙️ 首次使用请到「系统配置 → 模型来源」填入你的 API Key(种子数据中留空)。
+> 🛠 **后端必须用 JDK 17 构建**(推荐),JDK 过新会触发 Lombok 编译报错(`JCImport qualid`),详见后端 README。
 
 ## 🗄 数据库
 

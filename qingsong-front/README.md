@@ -69,5 +69,6 @@ npm run test:virtual-list      # 虚拟列表
 | `API_BASE_URL` | `.env` → `VITE_API_BASE_URL` | 后端地址(空则走同源代理) |
 | TTS 密钥 | `.env` → `VITE_MIMO_TTS_DEFAULT_KEY` | 或运行时 `localStorage('mimo-tts-api-key')` |
 
-> 📌 `public/emoji*` 与 `src/assets/chat-themes/` 为生成资源(已 gitignore),
-> 本地执行 `npm run copy:emoji`、`npm run build:theme-cloud-immortal` 重新生成。
+> 📌 `public/emoji*` 表情资源(5 套 provider)**已随仓库提交**,开箱即用。
+> 如需自定义,可执行 `npm run copy:emoji` 重新生成;
+> `src/assets/chat-themes/` 云隐主题背景图已提交,`npm run build:theme-cloud-immortal` 可重新生成。

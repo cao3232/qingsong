@@ -27,11 +27,6 @@ secrets.*.yml
 
 # ---------- 第三方运行期静态资源 ----------
 public/webviewer/
-public/emoji/
-public/emoji-openmoji/
-public/emoji-fluent/
-public/emoji-blob/
-public/emoji-doodle/
 
 # ---------- 数据库备份数据(只留 schema,不留真实数据) ----------
 sql/data-backup.sql
