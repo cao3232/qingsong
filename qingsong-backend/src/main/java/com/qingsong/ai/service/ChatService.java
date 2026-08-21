@@ -4,9 +4,6 @@ import com.qingsong.ai.advice.NonBlockingAuditAdvisor;
 import com.qingsong.ai.aspect.MyToolAnnotationAspect;
 import com.qingsong.ai.service.chat.ChatPersistenceService;
 import com.qingsong.ai.tools.AITools;
-import com.qingsong.ai.tools.EmailTool;
-import com.qingsong.ai.tools.novel.NovelReadTools;
-import com.qingsong.ai.tools.novel.NovelWriteTools;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -58,11 +55,7 @@ public class ChatService {
     private final ModelConfigService modelConfigService;
     private final ChatPersistenceService chatPersistenceService;
 
-    private final AITools aiTools;
-    private final NovelWriteTools novelWriteTools;
-    private final NovelReadTools novelReadTools;
-    private final EmailTool emailTool;
-
+    private final AITools aiTools;
     /**
      * 执行流式 AI 对话
      *

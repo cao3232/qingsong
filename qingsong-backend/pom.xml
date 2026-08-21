@@ -10,9 +10,9 @@
     </parent>
     <groupId>com.qingsong</groupId>
     <artifactId>qingsong-backend</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>1.0.0</version>
     <name>qingsong-backend</name>
-    <description>qingsong</description>
+    <description>qingsong-chat AI 对话后端</description>
     <url/>
     <licenses>
         <license/>

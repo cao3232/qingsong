@@ -1,15 +1,11 @@
 server:
   port: 8088
-rocketmq:
-  name-server: 192.168.1.52:9876
-  producer:
-    group: order-producer-group # RocketMQ 强制要求指定 Producer Group
 spring:
   application:
     name: qingsong-backend
   config:
     import:
-      - classpath:secrets.yml   # 集中密钥文件（勿提交，模板见 secrets.example.yml）
+      - optional:classpath:secrets.yml   # 集中密钥文件（可选；模板见 secrets.example.yml，也可用环境变量注入）
       - classpath:ai.yml
 
   freemarker:

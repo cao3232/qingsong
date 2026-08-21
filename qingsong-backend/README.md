@@ -1,53 +1,60 @@
 # qingsong-chat-backend
 
-青松 AI 对话(chat)后端,从个人项目按「代码不变、只提取」原则拆分。
+AI 对话应用后端。**版本 1.0.0**(Maven artifact:`com.qingsong:qingsong-backend:1.0.0`)。
 
-技术栈:**Spring Boot 3 + Java 17 + Maven + MyBatis-Plus + Sa-Token + Spring AI + MySQL + Redis + pgvector + MinIO**。
+技术栈:**Spring Boot 3.5 + Java 17 + Maven + MyBatis-Plus + Sa-Token + Spring AI + Reactor + MySQL + Redis + pgvector + MinIO**。
+
+## 功能模块
+
+| 模块 | 路由 | 说明 |
+|------|------|------|
+| 对话 | `/ai/chat`(SSE) | 流式对话,多模型/多角色 |
+| 会话历史 | `/ai/history/*` | 列表/详情/改名/删除 |
+| 复盘统计 | `/ai/stats/*` | 按日聚合统计与解读 |
+| 消息导出 | `/message/send-email-html` | 消息导出邮件 |
+| 工具清单 | `/tools/name` | AI 工具注册清单 |
+| 角色 | `/roles`、`/admin/roles` | 角色列表与管理 |
+| 快捷短语 | `/api/quick-phrases` | 角色快捷短语 |
+| 模型来源/配置 | `/api/model-sources`、`/api/model-configs` | 模型管理 |
+| 知识库 | `/api/knowledge/bases` | RAG 知识库列表 |
+| 用户鉴权 | `/user-config/*` | 登录/注册/会话校验 |
+
+**AI 工具**:对话中可被模型调用(`/tools/name` 返回清单),由 `tools` 包注册。
 
 ## 运行
 
 ```bash
-cp secrets.example.yml secrets.yml   # 填入你自己的密钥
-mvn spring-boot:run                  # :8088
+cp src/main/resources/secrets.example.yml src/main/resources/secrets.yml
+# 填写 secrets.yml 中的 AI_OPENAI_API_KEY / AI_BASE_URL 等(也可改用环境变量注入)
+
+mvn spring-boot:run          # :8088
+mvn -DskipTests package      # 打包 target/*.jar
 ```
 
-> 依赖中间件:本地 MySQL(`big_event`)、Redis(:6379)、pgvector(:5432)、MinIO(:9032)。
-> 未配置时 chat 主流程(对话/历史/角色)仍可用,文件/RAG 相关能力受限。
+> 依赖中间件:MySQL(`big_event`)、Redis(:6379)、MinIO(:9032)、pgvector(:5432)。
+> 未配置 pgvector/MinIO 时,对话/历史/角色等主流程仍可用。
 
-## 提取范围
+## Docker
 
-仅包含 chat 链路相关的包:
-
-| 包 | 内容 |
-|----|------|
-| `controller/chat` | ChatController(`/ai/chat` SSE)、ChatHistoryController(`/ai/history`)、ChatReviewController(`/ai/stats`)、MessageController(`/message/send-email-html`)、ToolController(`/tools/name`) |
-| `controller/model` | ModelSourceController(`/api/model-sources`)、ModelConfigController(`/api/model-configs`) |
-| `controller/role` | RolesController(`/roles`、`/admin/roles`)、RolePhrasesController(`/api/quick-phrases`) |
-| `controller/knowledge` | KnowledgeController(`/api/knowledge/bases` RAG 知识库列表) |
-| `controller/user` | UserConfigController(`/user-config` 登录/注册/会话校验) |
-| `service` / `service/impl` | ChatService、ChatPersistenceService、ChatHistoryService、ChatReviewService、Role/Model/Email/Export/Rag 服务 |
-| `entity` | `po/chat`、`po/role`、`po/model`、`po/knowledge`、`po/user` + 相关 dto/vo |
-| `mapper` | chat(3)、role(2)、model(2)、knowledge(2)、user(1) |
-| `config` / `aspect` / `advice` / `utils` 等 | Sa-Token、MyBatis-Plus、Redis、MinIO、pgvector 等基础设施 |
-
-**未包含**:workflow / topic / motto / code-snippet / interview / flowable / rocketmq 等无关业务,
-以及原项目中 `/ai/game`、`/ai/service`、`/ai/pdf/*`、`/api/tts`、`/audio` 等场景接口。
-
-## 数据库
-
-表结构与数据备份见 `../sql/`:
-- 通用配置表(可导数据):`role`、`role_phrases`、`model_source`、`model_config`
-- 会话/消息表(仅 schema):`ai_chat_session`、`ai_chat_message`、`chat_review`
-
-角色默认种子在 `config/MyRolesConfig.java`(代码配置)。
+```bash
+docker build -t qingsong-backend .
+```
+或直接使用根目录 `docker-compose.yml` 一键编排(见根 README)。
 
 ## 配置
 
-- `application.yaml` / `ai.yml`:通过 `${VAR}` 占位符引用密钥,由 `secrets.yml` 注入
-  (`spring.config.import: optional:file:./secrets.yml`)。
-- `secrets.example.yml`:模板,复制为 `secrets.yml` 填写真实值。真实密钥不入库。
+- `application.yaml` / `ai.yml`:密钥统一以 `${VAR}` 占位符引用,经
+  `optional:classpath:secrets.yml`(或环境变量)注入。
+- `secrets.example.yml`:模板;真实 `secrets.yml` 不入库。
+- 所有密钥可用环境变量覆盖(如 `SPRING_AI_OPENAI_API_KEY`、`SPRING_DATASOURCE_URL`),便于容器化部署。
 
-## 接口对照
+## 版本
 
-前端调用点集中在 `qingsong-front/src/modules/chat/services/`(`chatService.js` / `roleService.js` /
-`rolePhrasesService.js` / `ragService.js` / `ttsService.js`),与本后端一一对应。
+| 版本 | 说明 |
+|------|------|
+| 1.0.0 | 首个开源版本 |
+
+
+![img_1.png](img_1.png)
+
+![img.png](img.png)

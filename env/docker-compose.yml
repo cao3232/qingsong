@@ -1,0 +1,138 @@
+services:
+  # ---------- 基础设施 ----------
+  mysql:
+    image: mysql:8.0
+    container_name: qingsong-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-root123456}
+      MYSQL_DATABASE: big_event
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 启动时自动初始化 chat 相关表
+      - ../sql/chat-schema.sql:/docker-entrypoint-initdb.d/01-chat-schema.sql:ro
+      - ../sql/config-schema.sql:/docker-entrypoint-initdb.d/02-config-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: qingsong-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: qingsong-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9033"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    ports:
+      - "9032:9000"
+      - "9033:9033"
+    volumes:
+      - minio-data:/data
+
+  pgvector:
+    image: ankane/pgvector:v0.5.0
+    container_name: qingsong-pgvector
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: know-hub
+      POSTGRES_USER: ${PG_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-postgres123456}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USERNAME:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---------- 应用 ----------
+  backend:
+    build: ../qingsong-backend
+    container_name: qingsong-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      pgvector:
+        condition: service_healthy
+    environment:
+      # 数据库
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/big_event?serverTimezone=Asia/Shanghai&useSSL=false&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&tinyInt1isBit=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USERNAME:-root}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-root123456}
+      # Redis
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      # MinIO
+      MINIO_ENDPOINT: http://minio:9000/
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      # pgvector
+      SPRING_AI_VECTORSTORE_PGVECTOR_DATASOURCE_URL: jdbc:postgresql://pgvector:5432/know-hub
+      SPRING_AI_VECTORSTORE_PGVECTOR_DATASOURCE_USERNAME: ${PG_USERNAME:-postgres}
+      SPRING_AI_VECTORSTORE_PGVECTOR_DATASOURCE_PASSWORD: ${PG_PASSWORD:-postgres123456}
+      # AI 模型
+      SPRING_AI_OPENAI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      SPRING_AI_OPENAI_API_KEY: ${AI_OPENAI_API_KEY:-}
+      SPRING_AI_OPENAI_EMBEDDING_BASE_URL: ${AI_EMBEDDING_BASE_URL:-}
+      SPRING_AI_OPENAI_EMBEDDING_API_KEY: ${AI_EMBEDDING_API_KEY:-}
+      # 邮件
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_EXPORT_TO: ${MAIL_EXPORT_TO:-}
+      MAIL_AGENT_TO: ${MAIL_AGENT_TO:-}
+      MAIL_JOB_TO: ${MAIL_JOB_TO:-}
+      # 飞书
+      FEISHU_URL: ${FEISHU_URL:-}
+      FEISHU_SECRET: ${FEISHU_SECRET:-}
+    ports:
+      - "8088:8088"
+
+  frontend:
+    build:
+      context: ../qingsong-front
+      args:
+        VITE_API_BASE_URL: ""
+    container_name: qingsong-front
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  mysql-data:
+  redis-data:
+  minio-data:
+  pg-data:
