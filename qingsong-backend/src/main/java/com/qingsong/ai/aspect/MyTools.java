@@ -1,4 +1,4 @@
-package com.qingsong.ai.tools;
+package com.qingsong.ai.aspect;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;

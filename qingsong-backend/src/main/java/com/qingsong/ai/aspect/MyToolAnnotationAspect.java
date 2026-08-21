@@ -1,6 +1,6 @@
 package com.qingsong.ai.aspect;
 
-import com.qingsong.ai.tools.MyTools;
+import com.qingsong.ai.aspect.MyTools;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.aop.support.AopUtils;
