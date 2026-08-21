@@ -9,12 +9,17 @@
 ![frontend](https://img.shields.io/badge/frontend-Vue%203%20%2F%20Vite-42b883)
 ![backend](https://img.shields.io/badge/backend-Spring%20Boot%203-6db33f)
 ![build](https://img.shields.io/badge/build-passing-brightgreen)
+[![LINUX DO](https://img.shields.io/badge/社区-LINUX%20DO-0ea5e9)](https://linux.do)
 
 多角色对话 · SSE 流式输出 · 会话历史 · TTS 语音 · PDF 阅读 · RAG 知识库 · AI 工具调用 · 模型管理
+
+**🤝 本项目已链接并认可 LINUX DO 社区,内置 L站(LinuxDo)AI 接入预设。**
 
 </div>
 
 ---
+
+
 
 ## ✨ 功能特性
 
@@ -27,7 +32,7 @@
 | 📄 **PDF 阅读器** | 本地 PDF 阅读 + TTS 朗读,无需上传 |
 | 🧠 **RAG 知识库增强** | 对话时可挂载知识库做检索增强回答 |
 | 🛠 **AI 工具调用** | 对话中可调用注册工具,支持快捷短语 |
-| 🎛 **模型管理** | 多来源(OpenAI/DeepSeek/Qwen/中转等)+ 多模型配置与切换 |
+| 🎛 **模型管理** | 多来源(OpenAI/DeepSeek/Qwen/**L站 LinuxDo**/任意 OpenAI 兼容中转)+ 多模型配置与一键切换 |
 | 📊 **对话复盘** | 按日聚合角色/会话/消息统计,生成解读报告 |
 
 ## 🛠 技术栈
@@ -83,7 +88,7 @@ npm run dev                                                                # :80
 ```
 
 > 🎫 **默认账号**:`admin / admin123`(登录后请尽快修改)。
-> ⚙️ 首次使用请到「系统配置 → 模型来源」填入你的 API Key(种子数据中留空)。
+> ⚙️ 首次使用请到「系统配置 → 模型来源」填入你的 API Key(种子数据中留空;已内置 **L站(LinuxDo)**、OpenAI 两个来源预设,直接填 Key 即可用)。
 > 🛠 **后端必须用 JDK 17 构建**(推荐),JDK 过新会触发 Lombok 编译报错(`JCImport qualid`),详见后端 README。
 
 ## 🗄 数据库
@@ -113,3 +118,9 @@ npm run dev                                                                # :80
 ## 📄 License
 
 [MIT](LICENSE)
+
+## 社区交流
+
+> **真诚、友善、团结、专业** —— LINUX DO 社区
+
+[学AI来LinuxDo](https://linux.do/)

@@ -24,7 +24,7 @@
 | 🛠 工具清单 | `/tools/name` | AI 工具注册清单 |
 | 👤 角色 | `/roles`、`/admin/roles` | 角色列表与增删改/排序/收藏 |
 | 💡 快捷短语 | `/api/quick-phrases` | 角色快捷短语 |
-| 🎛 模型管理 | `/api/model-sources`、`/api/model-configs` | 模型来源与模型配置 |
+| 🎛 模型管理 | `/api/model-sources`、`/api/model-configs` | 模型来源与模型配置(预设 OpenAI / L站 LinuxDo) |
 | 🧠 知识库 | `/api/knowledge/*` | 知识库管理、文档管理、文件上传(供 RAG) |
 | 🔐 用户鉴权 | `/user-config/*` | 登录 / 注册 / 会话校验 |
 
