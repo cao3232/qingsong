@@ -46,6 +46,21 @@
         <h3 class="app-title">系统配置</h3>
         <p class="app-description">管理API密钥和模型设置</p>
       </div>
+
+      <!-- 知识库管理 -->
+      <div class="app-card" @click="navigateToApp('knowledge-base')">
+        <div class="app-icon knowledge-base-icon">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 4h12a4 4 0 0 1 4 4v12H8a4 4 0 0 0-4 4V4z" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M8 4v16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M12 8h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M12 12h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <h3 class="app-title">知识库管理</h3>
+        <p class="app-description">创建与维护知识库,支持对话 RAG 检索</p>
+      </div>
     </div>
   </div>
 </template>
@@ -65,6 +80,9 @@ const navigateToApp = (appType) => {
       break
     case 'config':
       router.push('/config')
+      break
+    case 'knowledge-base':
+      router.push('/knowledge-base')
       break
     default:
       alert('该功能正在开发中，敬请期待！')
@@ -138,6 +156,11 @@ const navigateToApp = (appType) => {
 
 .config-icon {
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+}
+
+.knowledge-base-icon {
+  background: linear-gradient(135deg, #34d399 0%, #0ea5e9 100%);
   color: white;
 }
 

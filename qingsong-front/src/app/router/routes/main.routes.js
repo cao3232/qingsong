@@ -28,6 +28,16 @@ export const mainRoutes = [
     component: () => import('../../../modules/chat/index.js').then(module => module.PDFReaderPage)
   },
   {
+    path: '/knowledge-base',
+    name: 'KnowledgeBase',
+    component: () => import('../../../modules/knowledge-base/index.js').then(module => module.KnowledgeBasePage)
+  },
+  {
+    path: '/knowledge-base/:id',
+    name: 'KnowledgeBaseDetail',
+    component: () => import('../../../modules/knowledge-base/index.js').then(module => module.KnowledgeBaseDetailPage)
+  },
+  {
     path: '/config',
     name: 'Config',
     redirect: '/config/system',

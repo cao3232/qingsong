@@ -17,6 +17,7 @@
 
 - 💬 **AI 对话**(`/chat`)— 多角色、SSE 流式输出、会话历史、消息跳转/分享、复盘日报、TTS 朗读、RAG 知识库
 - 📄 **PDF 阅读**(`/pdf-reader`)— 本地 PDF 阅读 + TTS 朗读
+- 📚 **知识库管理**(`/knowledge-base`)— 创建/维护知识库、上传文档,供对话 RAG 检索
 - 🎛 **系统配置**(`/config/*`)— 系统主题、模型来源、模型管理、角色管理、用户配置
 - 🔐 **登录 / 注册**(`/login` `/register`)
 
@@ -39,6 +40,8 @@ npm run build        # 生产构建 → dist/ (含 type-check)
 | `/login` `/register` | BiophilicAuthPage | 登录 / 注册 |
 | `/chat` | AIChatPage | 核心 AI 对话 |
 | `/pdf-reader` | PDFReaderPage | PDF 阅读 + TTS |
+| `/knowledge-base` | KnowledgeBasePage | 知识库列表/管理 |
+| `/knowledge-base/:id` | KnowledgeBaseDetailPage | 知识库文档管理 |
 | `/config/*` | SystemSetting / ModelSource / ModelManage / RoleManage / UserConfig | 系统配置 |
 
 ## 📁 目录结构
@@ -46,6 +49,7 @@ npm run build        # 生产构建 → dist/ (含 type-check)
 ```
 src/
 ├─ modules/chat/          # 对话核心(页面 / 组件 / 组合逻辑 / 服务)
+├─ modules/knowledge-base/ # 知识库管理(文档上传 / RAG)
 ├─ modules/tools/pages/   # 系统配置页(模型 / 角色管理)
 ├─ modules/agent-lab/     # agentApi(对话复盘依赖)
 ├─ app/                   # 路由 / 布局 / 首页
