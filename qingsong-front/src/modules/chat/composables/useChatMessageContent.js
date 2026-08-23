@@ -749,7 +749,8 @@ const normalizeMarkdownForStreaming = content => {
           startOnLoad: false,
           securityLevel: 'strict',
           theme: 'neutral',
-          fontFamily: 'var(--code-font-family, system-ui)'
+          fontFamily: 'var(--code-font-family, system-ui)',
+          suppressErrorRendering: true
         })
         return mermaid
       })
@@ -859,6 +860,8 @@ const normalizeMarkdownForStreaming = content => {
           } else {
             clearStaleMermaidRendering(block, renderEl)
           }
+        } finally {
+          document.getElementById(`d-${id}`)?.remove()
         }
       }
     })
