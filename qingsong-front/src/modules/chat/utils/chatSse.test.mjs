@@ -159,6 +159,8 @@ test('state appends chunks and records completion chat id', () => {
     finishReason: 'completed',
     requestId: null,
     usage: null,
+    elapsedMs: null,
+    tools: [],
     nextSequence: null
   })
   assert.equal(assertChatSseCompleted(state), state)
@@ -378,7 +380,7 @@ test('consumer decodes split Unicode bytes, reports complete content after chunk
 
   assert.deepEqual(updates, ['你', '你好'])
   assert.deepEqual(result, {
-    status: 'completed', content: '你好', reasoning: '', chatId: 'chat-4', requestId: null, usage: null
+    status: 'completed', content: '你好', reasoning: '', chatId: 'chat-4', requestId: null, usage: null, elapsedMs: null, tools: []
   })
 })
 
@@ -403,7 +405,7 @@ test('consumer stops after the done batch without cancelling a normally complete
   const result = await consumeChatSseReader(reader)
 
   assert.deepEqual(result, {
-    status: 'completed', content: '', reasoning: '', chatId: 'chat-done', requestId: null, usage: null
+    status: 'completed', content: '', reasoning: '', chatId: 'chat-done', requestId: null, usage: null, elapsedMs: null, tools: []
   })
   assert.equal(reads, 1)
   assert.equal(cancels, 0)
@@ -559,4 +561,66 @@ test('content-type helper rejects media types that merely contain text/event-str
     }),
     ChatSseProtocolError
   )
+})
+
+test('parser recognizes tool_call and tool_result events', () => {
+  const parser = createChatSseParser()
+  const events = parser.push(
+    'event: tool_call\ndata: {"requestId":"r","sequence":1,"toolCallId":"t1","name":"savePrompt","status":"running","args":"{\\"name\\":\\"x\\"}"}\n\n' +
+      'event: tool_result\ndata: {"requestId":"r","sequence":2,"toolCallId":"t1","name":"savePrompt","status":"success","result":"已保存","durationMs":12}\n\n'
+  )
+
+  assert.deepEqual(events, [
+    {
+      type: 'tool_call',
+      data: { requestId: 'r', sequence: 1, toolCallId: 't1', name: 'savePrompt', status: 'running', args: '{"name":"x"}' }
+    },
+    {
+      type: 'tool_result',
+      data: { requestId: 'r', sequence: 2, toolCallId: 't1', name: 'savePrompt', status: 'success', result: '已保存', durationMs: 12 }
+    }
+  ])
+})
+
+test('tool events missing required fields throw protocol error', () => {
+  assert.throws(
+    () => createChatSseParser().push('event: tool_call\ndata: {"requestId":"r","sequence":1}\n\n'),
+    ChatSseProtocolError
+  )
+  assert.throws(
+    () => createChatSseParser().push('event: tool_result\ndata: {"requestId":"r","sequence":1,"toolCallId":"t1","name":"x"}\n\n'),
+    ChatSseProtocolError
+  )
+})
+
+test('consumer merges tool events into result.tools and fires callbacks', async () => {
+  const stream = [
+    'event: meta\ndata: {"protocolVersion":1,"requestId":"req-tool","chatId":"chat-tool","sequence":0}\n\n',
+    'event: tool_call\ndata: {"requestId":"req-tool","sequence":1,"toolCallId":"t1","name":"savePrompt","status":"running","args":"{\\"name\\":\\"x\\"}"}\n\n',
+    'event: chunk\ndata: {"requestId":"req-tool","sequence":2,"content":"回复正文"}\n\n',
+    'event: tool_result\ndata: {"requestId":"req-tool","sequence":3,"toolCallId":"t1","name":"savePrompt","status":"success","result":"已保存","durationMs":12}\n\n',
+    'event: done\ndata: {"requestId":"req-tool","sequence":4,"chatId":"chat-tool","finishReason":"completed"}\n\n'
+  ]
+  const calls = []
+  const results = []
+  const result = await consumeChatSseReader(createReader(stream.map(encode)), {
+    onToolCall: data => calls.push(['call', data.toolCallId, data.status]),
+    onToolResult: data => results.push(['result', data.toolCallId, data.status])
+  })
+
+  assert.equal(result.status, 'completed')
+  assert.deepEqual(calls, [['call', 't1', 'running']])
+  assert.deepEqual(results, [['result', 't1', 'success']])
+  assert.deepEqual(result.tools, [
+    { toolCallId: 't1', name: 'savePrompt', status: 'success', args: '{"name":"x"}', result: '已保存', durationMs: 12 }
+  ])
+})
+
+test('consumer applies done event tools summary into result.tools', async () => {
+  const stream = [
+    'event: meta\ndata: {"protocolVersion":1,"requestId":"req-sum","chatId":"chat-sum","sequence":0}\n\n',
+    'event: done\ndata: {"requestId":"req-sum","sequence":1,"chatId":"chat-sum","finishReason":"completed","tools":[{"toolCallId":"t1","name":"savePrompt","status":"success"}]}\n\n'
+  ]
+  const result = await consumeChatSseReader(createReader(stream.map(encode)), {})
+  assert.deepEqual(result.tools, [{ toolCallId: 't1', name: 'savePrompt', status: 'success' }])
 })

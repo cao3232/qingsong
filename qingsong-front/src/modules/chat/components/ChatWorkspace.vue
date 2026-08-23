@@ -52,7 +52,8 @@
             :is-streaming="isStreaming && (virtualItem.index === props.currentMessages.length - 1 || virtualItem.index === lastUserMessageIndex)"
             :previous-message="virtualItem.index > 0 ? props.currentMessages[virtualItem.index - 1] : null"
             :collapse-assistant="collapseAssistantMessages" class="message-item"
-            @retry="handleRetryMessage" @edit="handleEditMessage" />
+            @retry="handleRetryMessage" @edit="handleEditMessage" @refresh-session="handleRefreshSession"
+            @session-deleted="handleSessionDeleted" />
         </div>
         <div v-if="virtualPaddingEnd > 0" class="message-list-spacer"
           :style="{ height: `${virtualPaddingEnd}px` }"></div>
@@ -152,7 +153,9 @@ const emit = defineEmits([
   'append-message',
   'update:currentMessages',
   'clear-chat',
-  'update-chat-name'
+  'update-chat-name',
+  'refresh-session',
+  'session-deleted'
 ])
 
 // 最新一条用户消息的索引（用于就地编辑按钮显示）；找不到则返回 -1
@@ -189,6 +192,8 @@ const {
   handlePaste,
   handleRetryMessage,
   handleEditMessage,
+  handleRefreshSession,
+  handleSessionDeleted,
   handleSelectPhrase,
   handleSendEmail,
   inputRef,

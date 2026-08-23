@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS ai_chat_session
     message_count INT NOT NULL DEFAULT 0 COMMENT '消息总数',
     last_message_id BIGINT NULL COMMENT '最后一条消息ID',
     last_message_at DATETIME NULL COMMENT '最后一条消息时间',
+    last_user_message_no VARCHAR(64) NULL COMMENT '最后一轮用户消息ID(round_id)',
     deleted TINYINT
 (
     1

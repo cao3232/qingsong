@@ -44,7 +44,7 @@ const userMessages = computed(() => {
     }
 
     anchors.push({
-      id: message.messageId || message.id || null,
+      id: message.messageNo || message.id || null,
       index,
       preview: content.length > 28 ? `${content.slice(0, 28)}...` : content
     })

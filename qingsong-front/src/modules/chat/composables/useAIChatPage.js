@@ -3,6 +3,7 @@ import { useMessage } from 'naive-ui'
 import {
   chatAPI,
   createClientMessageId,
+  isConnectionError,
   roleAPI
 } from '../services/index.js'
 import {
@@ -17,7 +18,7 @@ const LOCAL_CHAT_ID_PREFIX = 'temp-'
 const createLocalChatId = () =>
   `${LOCAL_CHAT_ID_PREFIX}${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
-const isLocalOnlyChatId = chatId => String(chatId || '').startsWith(LOCAL_CHAT_ID_PREFIX)
+export const isLocalOnlyChatId = chatId => String(chatId || '').startsWith(LOCAL_CHAT_ID_PREFIX)
 
 const DEFAULT_CONVERSATION_TITLES = new Set(['', '新会话', '新对话'])
 
@@ -367,16 +368,35 @@ export const useAIChatPage = () => {
     activeRequestToken = requestToken
     abortController = new AbortController()
     let requestChatId = currentChatId.value
-    const outgoingChatId = isLocalOnlyChatId(chatId) ? null : chatId
+    // 会话身份由 /chat/pre 预建：新会话时 child 传入真实 sessionNo，既有会话传入当前 id。
+    // 在发起请求前就认领，保证首条发送即使网络失败，currentChatId 也已是数据库中的真实会话号，
+    // 重试时不会被剥成 null 或对不上号。
+    const outgoingChatId = chatId && !isLocalOnlyChatId(chatId) ? String(chatId) : null
+    if (outgoingChatId && outgoingChatId !== currentChatId.value) {
+      const oldChatId = currentChatId.value ? String(currentChatId.value) : null
+      currentChatId.value = outgoingChatId
+      requestChatId = outgoingChatId
+      const localChatIndex = chatHistory.value.findIndex(chat => String(chat.id) === oldChatId)
+      if (localChatIndex !== -1) {
+        chatHistory.value[localChatIndex] = {
+          ...chatHistory.value[localChatIndex],
+          id: outgoingChatId,
+          source: 'server',
+          lastMessageAt: new Date(),
+          timestamp: new Date()
+        }
+      }
+    }
     const lastUserMessageIndex = currentMessages.value.length - 1
     const lastUserMessage = currentMessages.value[lastUserMessageIndex]
     const assistantMessageId = createClientMessageId('assistant')
     const assistantMessage = {
       id: assistantMessageId,
-      messageId: assistantMessageId,
+      messageNo: assistantMessageId,
       hasAccurateTimestamp: true,
       role: 'assistant',
       content: '请求回复中...',
+      toolSteps: [],
       timestamp: new Date(),
       chatModel: formData.get('model') || ''
     }
@@ -423,6 +443,13 @@ export const useAIChatPage = () => {
       }
       let lastUpdateTime = 0
       const updateInterval = 250
+      // 按 toolCallId 合并工具执行步骤到本消息，驱动步骤卡片实时渲染
+      const upsertToolStep = step => {
+        if (!Array.isArray(assistantMessageRef.toolSteps)) assistantMessageRef.toolSteps = []
+        const existing = assistantMessageRef.toolSteps.find(item => item.toolCallId === step.toolCallId)
+        if (existing) Object.assign(existing, step)
+        else assistantMessageRef.toolSteps.push(step)
+      }
       const result = await consumeChatSseReader(reader, {
         isCancelled: isRequestCancelled,
         onContent: content => {
@@ -440,7 +467,21 @@ export const useAIChatPage = () => {
         onReasoning: reasoning => {
           assistantMessageRef.reasoningContent = reasoning
           return undefined
-        }
+        },
+        onToolCall: data => upsertToolStep({
+          toolCallId: data.toolCallId,
+          name: data.name,
+          status: data.status || 'running',
+          args: data.args
+        }),
+        onToolResult: data => upsertToolStep({
+          toolCallId: data.toolCallId,
+          name: data.name,
+          status: data.status,
+          result: data.result,
+          error: data.error,
+          durationMs: data.durationMs
+        })
       })
 
       // 已被取消：丢弃累积内容，移除本次助手消息，不再写回
@@ -462,6 +503,8 @@ export const useAIChatPage = () => {
         assistantMessageRef.reasoningContent = result.reasoning
         assistantMessageRef.tokenUsage = result.usage
         assistantMessageRef.elapsedMs = result.elapsedMs
+        // done.tools 为后端合并的完整汇总，覆盖实时增量（保证最终一致）
+        if (Array.isArray(result.tools)) assistantMessageRef.toolSteps = result.tools
       })
 
       if (lastUserMessage && lastUserMessage.role === 'user') {
@@ -474,9 +517,12 @@ export const useAIChatPage = () => {
         return
       }
 
+      const errorCode = error instanceof ChatSseStreamError ? error.code : null
       const errorMessage = error instanceof ChatSseStreamError
         ? error.message
-        : '抱歉，请求服务器发生了错误，请稍后重试。'
+        : isConnectionError(error)
+          ? '无法连接服务器，请检查网络或后端服务'
+          : '抱歉，请求服务器发生了错误，请稍后重试。'
       message.error(errorMessage)
 
       if (lastUserMessage && lastUserMessage.role === 'user') {
@@ -485,6 +531,13 @@ export const useAIChatPage = () => {
 
       assistantMessageRef.status = 'error'
       assistantMessageRef.content = errorMessage
+      // 会话已推进导致无法重试：前端按钮切换为"更新当前会话"重新拉取服务端消息
+      assistantMessageRef.retryStale = errorCode === 'CHAT_RETRY_STALE'
+      // 会话已被删除：提示用户新建会话，并刷新会话列表
+      if (errorCode === 'CHAT_SESSION_DELETED') {
+        assistantMessageRef.sessionDeleted = true
+        loadChatHistory(false)
+      }
 
     } finally {
       if (requestToken === activeRequestToken) {
@@ -567,6 +620,16 @@ export const useAIChatPage = () => {
     await loadLatestChat()
   }
 
+  // 当前会话已被删除：回到全新的本地会话，避免停留在已删除会话上
+  const handleSessionDeleted = () => {
+    const newChatId = createLocalChatId()
+    currentChatId.value = newChatId
+    currentMessages.value = []
+    const newChat = createHistoryItem(newChatId, selectedRoleName.value)
+    chatHistory.value = [newChat, ...chatHistory.value]
+    setTimeout(scrollToLastMessage, 100)
+  }
+
   const handleRagChange = ragData => {
     ragEnabled.value = ragData.enabled
     selectedKnowledgeBase.value = ragData.knowledgeBase
@@ -598,9 +661,9 @@ export const useAIChatPage = () => {
         if (typeof data.messageIndex === 'number' && data.messageIndex >= 0) {
           return data.messageIndex
         }
-        if (data.messageId != null) {
+        if (data.messageNo != null) {
           const byId = currentMessages.value.findIndex(
-            message => String(message?.messageId || message?.id) === String(data.messageId)
+            message => String(message?.messageNo || message?.id) === String(data.messageNo)
           )
           if (byId !== -1) {
             return byId
@@ -727,6 +790,7 @@ export const useAIChatPage = () => {
     handlePanelToggle,
     handleRagChange,
     handleRolesUpdated,
+    handleSessionDeleted,
     handleUpdateChatName,
     isStreaming,
     loadChat,

@@ -50,6 +50,11 @@ public class ChatHistory {
     private Integer messageCount;
 
     /**
+     * 最后一条 USER 消息的业务ID，作为重试轮次标识(round_id)。
+     */
+    private String lastUserMessageNo;
+
+    /**
      * 会话创建时间。
      */
     private LocalDateTime createdAt;

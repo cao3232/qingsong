@@ -3,10 +3,17 @@ export {
   chatAPI,
   createClientMessageId,
   decodeStreamChunk,
-  flushStreamDecoder
+  flushStreamDecoder,
+  isConnectionError
 } from './chatService.js'
 export { chatKnowledgeAPI } from './ragService.js'
 export { roleAPI } from './roleService.js'
+export {
+  listRecentPdfs,
+  saveRecentPdf,
+  removeRecentPdf,
+  clearRecentPdfs
+} from './pdfRecentService.js'
 export { rolePhrasesAPI } from './rolePhrasesService.js'
 export {
   ttsAPI,

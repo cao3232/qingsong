@@ -71,6 +71,30 @@
           </div>
         </div>
 
+        <!-- AI 工具执行步骤：独立于正文，默认收起详情 -->
+        <div v-if="toolSteps.length" class="tool-steps">
+          <div v-for="step in toolSteps" :key="step.toolCallId" class="tool-step" :class="`tool-step-${step.status}`">
+            <span class="tool-step-icon" aria-hidden="true">
+              <span v-if="step.status === 'running'" class="tool-spinner"></span>
+              <template v-else-if="step.status === 'success'">✅</template>
+              <template v-else-if="step.status === 'failed'">❌</template>
+              <template v-else>🔧</template>
+            </span>
+            <span class="tool-step-label">{{ toolStatusLabel(step.status) }}</span>
+            <span class="tool-step-name">{{ step.name }}</span>
+            <button v-if="step.args || step.result || step.error" class="tool-step-toggle" type="button"
+              @click="toggleToolDetail(step.toolCallId)">
+              {{ expandedToolIds[step.toolCallId] ? '收起' : '详情' }}
+            </button>
+            <div v-show="expandedToolIds[step.toolCallId]" class="tool-step-detail">
+              <div v-if="step.args" class="tool-step-field"><span class="field-label">参数</span><pre>{{ step.args }}</pre></div>
+              <div v-if="step.result" class="tool-step-field"><span class="field-label">结果</span><pre>{{ step.result }}</pre></div>
+              <div v-if="step.error" class="tool-step-field error"><span class="field-label">错误</span><pre>{{ step.error }}</pre></div>
+              <div v-if="step.durationMs != null" class="tool-step-field"><span class="field-label">耗时</span><span>{{ step.durationMs }}ms</span></div>
+            </div>
+          </div>
+        </div>
+
         <!-- 用户消息编辑态（内联就地编辑） -->
         <div v-if="isUser && isEditing" class="user-edit-box">
           <textarea ref="editTextareaRef" v-model="editContent" class="user-edit-textarea" rows="3"
@@ -97,7 +121,9 @@
             <div class="status-title">{{ isRateLimit ? '请求过于频繁' : '生成失败' }}</div>
             <div class="status-desc">{{ message.content || (isRateLimit ? '请求被限流，请稍后重试。' : '回复生成时出现错误，请重试。') }}</div>
           </div>
-          <button class="status-retry" @click="handleRetry">重试</button>
+          <button class="status-retry" @click="handleErrorAction">
+            {{ message.sessionDeleted ? '新建会话' : (message.retryStale ? '更新当前会话' : '重试') }}
+          </button>
         </div>
 
         <!-- AI 生成中状态提示 -->
@@ -262,7 +288,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['retry', 'edit'])
+const emit = defineEmits(['retry', 'edit', 'refresh-session', 'session-deleted'])
 
 const contentRef = ref(null)
 const copied = ref(false)
@@ -273,11 +299,11 @@ const ttsPlayback = useTtsPlayback()
 
 const isCurrentPlaying = computed(() =>
   ttsPlayback.isPlaying.value &&
-  ttsPlayback.playingMessageId.value === (props.message?.messageId || props.message?.id)
+  ttsPlayback.playingMessageNo.value === (props.message?.messageNo || props.message?.id)
 )
 
 const isDownloading = computed(() =>
-  ttsPlayback.downloadingMessageId.value === (props.message?.messageId || props.message?.id)
+  ttsPlayback.downloadingMessageNo.value === (props.message?.messageNo || props.message?.id)
 )
 
 const toggleMessagePlay = () => {
@@ -296,6 +322,16 @@ onBeforeUnmount(() => {
 
 const isUser = computed(() => props.message?.role === 'user')
 const copyButtonTitle = computed(() => copied.value ? '已复制' : '复制内容')
+
+// 工具执行步骤：来自 SSE tool_call/tool_result 的实时合并（详见 useAIChatPage.js）
+const toolSteps = computed(() =>
+  Array.isArray(props.message?.toolSteps) ? props.message.toolSteps : []
+)
+const expandedToolIds = ref({})
+const toggleToolDetail = id => {
+  expandedToolIds.value[id] = !expandedToolIds.value[id]
+}
+const toolStatusLabel = status => ({ running: '执行中', success: '成功', failed: '失败' }[status] || status || '')
 
 const messageStatus = computed(() => props.message?.status || '')
 const isRateLimit = computed(() =>
@@ -317,7 +353,7 @@ const showMessageTime = computed(() => shouldShowMessageTimestamp({
   timestamp: props.message?.timestamp,
   hasAccurateTimestamp: props.message?.hasAccurateTimestamp
 }))
-const messageAnchorId = computed(() => props.message?.messageId || props.message?.id || null)
+const messageAnchorId = computed(() => props.message?.messageNo || props.message?.id || null)
 const messageTimestampAttr = computed(() => {
   if (!showMessageTime.value) {
     return null
@@ -330,7 +366,7 @@ const messageTimestampAttr = computed(() => {
 const sessionId = computed(() => {
   if (props.message?.sessionId) return props.message.sessionId
   if (props.message?.chatId) return props.message.chatId
-  if (props.message?.messageId) return props.message.messageId
+  if (props.message?.messageNo) return props.message.messageNo
   if (props.message?.id) return props.message.id
   if (props.message?.timestamp) {
     const date = new Date(props.message.timestamp)
@@ -905,6 +941,19 @@ onBeforeUnmount(() => {
 
 const handleRetry = () => {
   emit('retry', props.message)
+}
+
+// 会话已推进/已删除导致重试无意义：按状态切换对应动作
+const handleErrorAction = () => {
+  if (props.message?.sessionDeleted) {
+    emit('session-deleted', props.message)
+    return
+  }
+  if (props.message?.retryStale) {
+    emit('refresh-session', props.message)
+    return
+  }
+  handleRetry()
 }
 
 // 用户消息就地编辑：编辑最新一条用户消息后，按"重试/重新生成"逻辑重发
@@ -1621,6 +1670,130 @@ const saveEdit = () => {
         word-break: break-word;
         font-family: inherit;
       }
+    }
+  }
+
+  // 工具执行步骤
+  .tool-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0 0 12px 0;
+    padding: 8px 10px;
+    border: 1px solid color-mix(in srgb, var(--chat-text-muted, #94a3b8) 16%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--chat-surface, #ffffff) 60%, transparent);
+  }
+
+  .tool-step {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    font-size: 12px;
+
+    &.tool-step-running {
+      background: color-mix(in srgb, var(--chat-accent, #6366f1) 6%, transparent);
+    }
+
+    &.tool-step-failed {
+      background: color-mix(in srgb, #ef4444 7%, transparent);
+    }
+
+    .tool-step-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      font-size: 12px;
+
+      .tool-spinner {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        border: 2px solid color-mix(in srgb, var(--chat-accent, #6366f1) 30%, transparent);
+        border-top-color: var(--chat-accent, #6366f1);
+        animation: qs-tool-spin 0.8s linear infinite;
+      }
+    }
+
+    .tool-step-label {
+      flex-shrink: 0;
+      color: var(--chat-text-muted, #64748b);
+      font-weight: 500;
+    }
+
+    .tool-step-name {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--chat-text, #334155);
+      font-weight: 600;
+    }
+
+    .tool-step-toggle {
+      flex-shrink: 0;
+      padding: 1px 6px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--chat-accent, #6366f1);
+      font-size: 11px;
+      cursor: pointer;
+
+      &:hover {
+        background: color-mix(in srgb, var(--chat-accent, #6366f1) 8%, transparent);
+      }
+    }
+
+    .tool-step-detail {
+      width: 100%;
+      margin-top: 4px;
+      padding-top: 6px;
+      border-top: 1px dashed color-mix(in srgb, var(--chat-text-muted, #94a3b8) 22%, transparent);
+
+      .tool-step-field {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-top: 4px;
+
+        .field-label {
+          flex-shrink: 0;
+          color: var(--chat-text-muted, #64748b);
+          font-size: 11px;
+          font-weight: 600;
+        }
+
+        pre {
+          flex: 1 1 auto;
+          margin: 0;
+          max-height: 160px;
+          overflow: auto;
+          white-space: pre-wrap;
+          word-break: break-word;
+          color: var(--chat-text, #475569);
+          font-size: 11px;
+          line-height: 1.5;
+        }
+
+        &.error {
+          .field-label,
+          pre {
+            color: #ef4444;
+          }
+        }
+      }
+    }
+  }
+
+  @keyframes qs-tool-spin {
+    to {
+      transform: rotate(360deg);
     }
   }
 

@@ -464,7 +464,7 @@ const normalizeMarkdownForStreaming = content => {
       if (scope === 'main') {
         codeBlocksData.value = {}
       }
-      const messageAnchorId = message.value?.messageId || message.value?.id || ''
+      const messageAnchorId = message.value?.messageNo || message.value?.id || ''
       const renderedHtml = postProcessMarkdownHtml(cleanHtml, { streaming, messageAnchorId })
       const finalHtml = replaceEmojis(renderedHtml, emojiStore.provider)
 

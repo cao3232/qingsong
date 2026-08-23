@@ -33,8 +33,9 @@ export const TTS_PLAYBACK_RATES = [
   { value: 1.5, label: '1.5x' }
 ]
 
-// MiMo TTS 单次合成文本长度有限，超过该长度需分段合成（每段约 500 字）
-const TTS_MAX_SEGMENT_CHARS = 500
+// MiMo TTS 单次合成文本长度有限，超过该长度音频会被截断导致少读/跳段，需分段合成。
+// 与 PDF 阅读器一致控制在 300 字内，降低接口超长截断风险。
+const TTS_MAX_SEGMENT_CHARS = 300
 
 const readStorage = key => {
   if (typeof window === 'undefined') return null
@@ -52,9 +53,9 @@ const autoPlay = ref(readStorage(TTS_AUTOPLAY_STORAGE_KEY) === '1')
 const voiceDesign = ref(readStorage(TTS_VOICE_DESIGN_STORAGE_KEY) || '')
 const optimizePreview = ref(readStorage(TTS_OPTIMIZE_PREVIEW_STORAGE_KEY) === '1')
 const playbackRate = ref(Number(readStorage(TTS_PLAYBACK_RATE_STORAGE_KEY)) || 1)
-const playingMessageId = ref(null)
+const playingMessageNo = ref(null)
 const isPlaying = ref(false)
-const downloadingMessageId = ref(null)
+const downloadingMessageNo = ref(null)
 
 // 音色克隆样本：{ name, base64, mime } 或 null
 const cloneSample = ref(getClonedVoiceSample())
@@ -220,7 +221,7 @@ const scheduleChunk = (samples, { onSegmentStart, segment, segmentIndex, token }
       activeSources.splice(index, 1)
     }
     if (pendingSourceCount <= 0) {
-      playingMessageId.value = null
+      playingMessageNo.value = null
       isPlaying.value = false
     }
   }
@@ -235,7 +236,7 @@ const scheduleChunk = (samples, { onSegmentStart, segment, segmentIndex, token }
 }
 
 const finishPlayback = () => {
-  playingMessageId.value = null
+  playingMessageNo.value = null
   isPlaying.value = false
   abortController = null
 }
@@ -381,7 +382,7 @@ const play = async (message, messageApi) => {
   stop()
   const token = ++playbackToken
 
-  playingMessageId.value = message.messageId || message.id || null
+  playingMessageNo.value = message.messageNo || message.id || null
   isPlaying.value = true
 
   try {
@@ -391,8 +392,10 @@ const play = async (message, messageApi) => {
     }
 
     // 长文本分段合成：每段流式请求后连续调度播放（自动启用克隆音色）
+    // 强制关闭“智能优化（optimize_text_preview）”：该功能会改写/压缩播报文本，造成跳句子/少读，
+    // 与阅读器行为保持一致，朗读必须按原文逐字读完整条消息
     const segments = splitTextIntoSegments(plainText, TTS_MAX_SEGMENT_CHARS)
-    const { scheduledCount } = await streamSegments(segments, token, { mode: 'play' })
+    const { scheduledCount } = await streamSegments(segments, token, { mode: 'play', optimizeTextPreview: false })
 
     if (scheduledCount === 0 && token === playbackToken) {
       messageApi?.warning?.('未获取到语音数据，请稍后重试或检查 API Key')
@@ -410,8 +413,8 @@ const play = async (message, messageApi) => {
 }
 
 const togglePlay = (message, messageApi) => {
-  const targetId = message?.messageId || message?.id
-  if (isPlaying.value && playingMessageId.value === targetId) {
+  const targetId = message?.messageNo || message?.id
+  if (isPlaying.value && playingMessageNo.value === targetId) {
     stop()
     return
   }
@@ -468,15 +471,15 @@ const downloadAudio = async (message, messageApi) => {
     return false
   }
 
-  const targetId = message.messageId || message.id || null
-  if (downloadingMessageId.value === targetId) {
+  const targetId = message.messageNo || message.id || null
+  if (downloadingMessageNo.value === targetId) {
     return false
   }
-  downloadingMessageId.value = targetId
+  downloadingMessageNo.value = targetId
 
   const token = ++playbackToken
   const { model, voice: voiceParam, voiceDesign, optimizeTextPreview } = resolveRequestParams()
-  const baseName = `语音_${(message.messageId || message.id || Date.now())}`
+  const baseName = `语音_${(message.messageNo || message.id || Date.now())}`
 
   try {
     const segments = splitTextIntoSegments(plainText, TTS_MAX_SEGMENT_CHARS)
@@ -522,7 +525,7 @@ const downloadAudio = async (message, messageApi) => {
     return false
   } finally {
     if (token === playbackToken) {
-      downloadingMessageId.value = null
+      downloadingMessageNo.value = null
     }
   }
 }
@@ -544,14 +547,14 @@ export const useTtsPlayback = () => ({
   clearClone,
   cloneSample,
   downloadAudio,
-  downloadingMessageId,
+  downloadingMessageNo,
   isPlaying,
   lastAudioId,
   optimizePreview,
   play,
   playSegments,
   playbackRate,
-  playingMessageId,
+  playingMessageNo,
   resetUsage,
   setAutoPlay,
   setCloneSample,

@@ -33,6 +33,19 @@ const createHistoryMessageId = (chatId, index, role = 'unknown') =>
 export const createClientMessageId = (prefix = 'msg') =>
   `${prefix}-${Date.now().toString(36)}-${nextRuntimeSequence()}`
 
+// 判定"无法连接后端"类错误（网络层失败或网关不可达），用于给用户明确的连接失败提示
+export const isConnectionError = error => {
+  const message = String(error?.message || '')
+  return (
+    [502, 503, 504].includes(error?.status) ||
+    [502, 503, 504].includes(error?.response?.status) ||
+    !error?.response ||
+    error?.code === 'ERR_NETWORK' ||
+    error?.name === 'TypeError' ||
+    /failed to fetch|network error|networkerror|load failed|connect(ion)? (refused|reset|timed? out)/i.test(message)
+  )
+}
+
 export const decodeStreamChunk = (decoder, value) =>
   decoder.decode(value, { stream: true })
 
@@ -66,7 +79,9 @@ const extractErrorMessage = async (response) => {
 
 const ensureOk = async (response) => {
   if (!response.ok) {
-    throw new Error(await extractErrorMessage(response))
+    const error = new Error(await extractErrorMessage(response))
+    error.status = response.status
+    throw error
   }
 }
 
@@ -149,7 +164,7 @@ const mapChatMessages = (messages = [], role, chatId) =>
     return {
       ...message,
       id: stableMessageId,
-      messageId: stableMessageId,
+      messageNo: stableMessageId,
       chatId: normalizeId(chatId),
       chatRoleId: role,
       timestamp: accurateTimestamp,
@@ -263,13 +278,40 @@ export const chatAPI = {
     }
   },
 
+  // 预分配会话身份与用户消息号：
+  // - 不带 sessionNo（新会话）：后端预建会话行，返回真实 sessionNo + 首个 messageNo；
+  // - 带 sessionNo（既有会话）：原样回传 sessionNo，仅签发新的 messageNo。
+  // 前端在发送/重试前调用，拿到后随主聊天请求带回，保证会话身份稳定可比对。
+  async preChat({ role, sessionNo, bizType = 'chat' } = {}) {
+    try {
+      const params = new URLSearchParams()
+      if (bizType) params.append('bizType', bizType)
+      if (role) params.append('role', role)
+      if (sessionNo) params.append('sessionNo', String(sessionNo))
+      const query = params.toString()
+      const url = query
+        ? `${API_BASE_URL}/ai/chat/pre?${query}`
+        : `${API_BASE_URL}/ai/chat/pre`
+      const result = await http.post(url)
+      if (result?.ok && result.data?.messageNo) {
+        return {
+          sessionNo: result.data.sessionNo || null,
+          messageNo: String(result.data.messageNo)
+        }
+      }
+      return null
+    } catch (error) {
+      console.error('preChat Error:', error)
+      throw error
+    }
+  },
+
   async sendMessage(data, chatId, { signal } = {}) {
     try {
       const url = new URL(`/ai/chat`, resolveBaseUrl())
       if (chatId) {
         url.searchParams.append('chatId', normalizeId(chatId))
       }
-
       const response = await fetchAuth(url, {
         method: 'POST',
         body:
@@ -454,9 +496,9 @@ export const chatAPI = {
     }
   },
 
-  async exportMessage(roleId, messageId) {
+  async exportMessage(roleId, messageNo) {
     const url = new URL(
-      `/ai/export/message/${encodePathParam(roleId)}/${encodePathParam(messageId)}`,
+      `/ai/export/message/${encodePathParam(roleId)}/${encodePathParam(messageNo)}`,
       resolveBaseUrl()
     )
     url.searchParams.set('_ts', Date.now().toString())
@@ -469,9 +511,9 @@ export const chatAPI = {
     return response.blob()
   },
 
-  async sendEmail(roleId, messageId) {
+  async sendEmail(roleId, messageNo) {
     return http.get(
-      `${API_BASE_URL}/message/send-email-html/${encodePathParam(roleId)}/${encodePathParam(messageId)}`,
+      `${API_BASE_URL}/message/send-email-html/${encodePathParam(roleId)}/${encodePathParam(messageNo)}`,
       { timeout: 60000 }
     )
   }

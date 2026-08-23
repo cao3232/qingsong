@@ -89,6 +89,8 @@
           @append-message="appendMessage"
           @clear-chat="handleClearChat"
           @update-chat-name="handleUpdateChatName"
+          @refresh-session="handleRefreshSession"
+          @session-deleted="handleSessionDeleted"
         />
       </div>
     </div>
@@ -136,6 +138,7 @@ const {
   handlePanelToggle,
   handleRagChange,
   handleRolesUpdated,
+  handleSessionDeleted,
   handleUpdateChatName,
   isStreaming,
   loadChat,
@@ -156,6 +159,15 @@ const {
   toggleSidebar,
   updateCurrentMessages
 } = useAIChatPage()
+
+// 会话已推进导致重试被拒：重新拉取当前会话的服务端消息，让界面回到最新状态
+const handleRefreshSession = () => {
+  const chatId = currentChatId.value
+  if (!chatId) {
+    return
+  }
+  loadChat(chatId)
+}
 </script>
 
 <style scoped>

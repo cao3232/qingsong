@@ -1,4 +1,7 @@
 export { useAIChatPage } from './useAIChatPage.js'
+export { useChatPDFPage } from './useChatPDFPage.js'
 export { useChatWorkspace } from './useChatWorkspace.js'
+export { useCustomerServicePage } from './useCustomerServicePage.js'
+export { useGameChatPage } from './useGameChatPage.js'
 export { useTtsPlayback } from './useTtsPlayback.js'
 export { usePdfReaderPage } from './usePdfReaderPage.js'

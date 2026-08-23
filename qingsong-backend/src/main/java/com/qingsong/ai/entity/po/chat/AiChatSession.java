@@ -30,6 +30,8 @@ public class AiChatSession {
 
     private LocalDateTime lastMessageAt;
 
+    private String lastUserMessageNo;
+
     private Integer deleted;
 
     private LocalDateTime createdAt;

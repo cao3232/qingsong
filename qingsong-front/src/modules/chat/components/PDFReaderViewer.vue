@@ -166,7 +166,13 @@ const loadFile = async file => {
     const pdfjs = await import('pdfjs-dist')
     pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url).toString()
     const data = new Uint8Array(await file.arrayBuffer())
-    loadingTask = pdfjs.getDocument({ data })
+    loadingTask = pdfjs.getDocument({
+      data,
+      // CID 字体（中文字体）需要 cmaps 才能正确解码渲染与提取文字
+      cMapUrl: `${import.meta.env.BASE_URL}pdfjs-cmaps/`,
+      cMapPacked: true,
+      standardFontDataUrl: `${import.meta.env.BASE_URL}pdfjs-standard-fonts/`
+    })
     pdfDocument = await loadingTask.promise
     if (token !== loadToken) return
     pageCount.value = pdfDocument.numPages

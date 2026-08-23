@@ -1,24 +1,19 @@
 package com.qingsong.ai.service;
 
 import com.qingsong.ai.advice.NonBlockingAuditAdvisor;
-import com.qingsong.ai.aspect.MyToolAnnotationAspect;
-import com.qingsong.ai.service.chat.ChatPersistenceService;
-import com.qingsong.ai.tools.AITools;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.messages.AssistantMessage;
-import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.metadata.Usage;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.content.Media;
 import org.springframework.ai.mcp.AsyncMcpToolCallbackProvider;
+import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.ai.vectorstore.SearchRequest;
-import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import reactor.core.publisher.Flux;
@@ -33,35 +28,43 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 /**
- * AI 聊天服务类
- * 负责处理所有与 AI 聊天相关的业务逻辑
+ * AI 聊天服务类 —— 负责流式聊天的用例编排（协议无关）。
+ *
+ * <p>拆分说明：</p>
+ * <ul>
+ *   <li>工具装配见 {@link ToolRegistry}；</li>
+ *   <li>RAG 知识库 advisor 见 {@link RagContextProvider}；</li>
+ *   <li>流终止收尾（持久化 + 解锁）见 {@link ChatTerminationHandler}；</li>
+ *   <li>非流式实体调用见 {@link ChatEntityService}；</li>
+ *   <li>正文分批见 {@link ChatStreamBuffer}。</li>
+ * </ul>
+ *
+ * <p>本类保留：{@link #executeStreamingChat} 主流程、MCP 工具回调装配、
+ * {@code ChatResponse} → {@link ChatStreamPart} 映射、错误传播与锁释放兜底。</p>
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ChatService {
 
-    private static final int RAG_TOP_K = 5;
-    private static final int STREAM_BATCH_MAX_CHARS = 48;
-    private static final Duration STREAM_BATCH_FLUSH_INTERVAL = Duration.ofMillis(50);
-    private final AsyncMcpToolCallbackProvider mcpToolCallbackProvider;
-    private final VectorStore vectorStore;
-    private final ModelConfigService modelConfigService;
-    private final ChatPersistenceService chatPersistenceService;
+    private static final Duration STREAM_TIMEOUT = Duration.ofSeconds(300);
 
-    private final AITools aiTools;
+    private final AsyncMcpToolCallbackProvider mcpToolCallbackProvider;
+    private final ToolRegistry toolRegistry;
+    private final RagContextProvider ragContextProvider;
+    private final ChatTerminationHandler chatTerminationHandler;
+    private final ChatEntityService chatEntityService;
+
     /**
-     * 执行流式 AI 对话
+     * 执行流式 AI 对话。
      *
      * @param request        聊天请求上下文
      * @param userChatClient ChatClient 实例
-     * @return Flux<String> 流式响应
+     * @return Flux<ChatStreamPart> 流式响应
      */
     public Flux<ChatStreamPart> executeStreamingChat(ChatRequest request, ChatClient userChatClient) {
         try {
@@ -70,35 +73,34 @@ public class ChatService {
             AtomicLong elapsedMs = new AtomicLong(NonBlockingAuditAdvisor.NOT_COMPLETED);
             List<Advisor> advisors = new ArrayList<>();
             if (!CollectionUtils.isEmpty(request.getKownledgeId())) {
-                // 向量查询条件
-                SearchRequest searchRequest = SearchRequest.builder()
-                        .topK(RAG_TOP_K)
-                        .query(request.getUserPrompt())
-                        .similarityThreshold(0.3F)
-                        .filterExpression(buildBaseAccessFilter(request.getKownledgeId()))
-                        .build();
-
-
-                QuestionAnswerAdvisor build = QuestionAnswerAdvisor.builder(vectorStore)
-                        .searchRequest(searchRequest)
-                        .build();
-                prefixMessage += "RAG: " + searchRequest.getQuery() + "\n";
+                // 知识库 RAG：构造向量检索 advisor 注入上下文
+                QuestionAnswerAdvisor build = ragContextProvider.buildQuestionAnswerAdvisor(
+                        request.getKownledgeId(), request.getUserPrompt());
+                prefixMessage += "RAG: " + request.getUserPrompt() + "\n";
                 advisors.add(build);
             }
 
             advisors.add(new NonBlockingAuditAdvisor());
             Object[] enabledToolObject = getEnabledToolObjects(request);
 
+            // 每请求一个工具事件总线：包装器写入、流内排空，避免并发会话事件串流
+            ToolExecutionEventBus toolEventBus = new ToolExecutionEventBus();
+
             Map<String, Object> advisorParams = Map.of(
                     "prefixMessage", prefixMessage,
                     NonBlockingAuditAdvisor.ELAPSED_MS_CONTEXT_KEY, elapsedMs);
 
+            // 双通道工具装配：MCP 回调 + @MyTools 分组工具，统一包装为 ObservingToolCallback。
+            // ⚠️ 必须走 .toolCallbacks()：.tools(Object...) 只接受 @Tool 注解的 Bean，
+            // 不接受 ToolCallback 实例（否则报 "No @Tool annotated methods found"）。
+            ToolCallback[] wrappedCallbacks = mergeToolCallbacks(
+                    wrapAll(mcpToolCallbackProvider.getToolCallbacks(), toolEventBus),
+                    wrapAll(ToolCallbacks.from(enabledToolObject), toolEventBus));
+
             // 构建 AI 流式响应
             Flux<ChatStreamPart> source = buildChatPrompt(userChatClient, request)
                     .system(request.getSystemPrompt())
-                    .toolCallbacks(getToolCallbacks())
-                    // .toolNames(Optional.of(enabledToolNames).or(new String[]{}))
-                    .tools(enabledToolObject)
+                    .toolCallbacks(wrappedCallbacks)
                     .options(request.getChatOptions())
                     .advisors(a ->
                             a.param(ChatMemory.CONVERSATION_ID, request.getConversationId())
@@ -110,24 +112,28 @@ public class ChatService {
                     .stream()
                     .chatResponse()
                     .map(this::toStreamPart)
-                    .transform(parts -> bufferChatParts(parts, STREAM_BATCH_MAX_CHARS, STREAM_BATCH_FLUSH_INTERVAL))
+                    // 每个 part 前先排空工具事件总线，保证 tool_call/tool_result 先于后续正文
+                    .concatMap(part -> Flux.concat(toolEventBus.drain(), Mono.just(part)))
+                    .transform(parts -> ChatStreamBuffer.bufferChatParts(parts,
+                            ChatStreamBuffer.STREAM_BATCH_MAX_CHARS, ChatStreamBuffer.STREAM_BATCH_FLUSH_INTERVAL))
                     .concatWith(Flux.defer(() -> elapsedMs.get() == NonBlockingAuditAdvisor.NOT_COMPLETED
                             ? Flux.empty()
                             : Flux.just(ChatStreamPart.elapsed(elapsedMs.get()))))
-                    .timeout(Duration.ofSeconds(300));
+                    // 流尾补排一次，避免末尾工具事件被遗漏
+                    .concatWith(Flux.defer(toolEventBus::drain))
+                    // 整体超时 300s：与 Netty 300s 响应超时保持一致（见 ChatClientFactory/底层 RetryTemplate）
+                    .timeout(STREAM_TIMEOUT);
 
             // 累积流式内容并在流终止时执行收尾（持久化 + 释放锁）；
             // 收尾完成后下游才看到终止信号，保证消息已落库、锁已释放
-            Flux<ChatStreamPart> aiResponseFlux = accumulateChatParts(source, (signalType, content) -> {
+            Flux<ChatStreamPart> aiResponseFlux = ChatTerminationHandler.accumulateChatParts(source, (signalType, content) -> {
                         if (signalType == SignalType.CANCEL) {
-                            handleCancel(request.getChatId());
+                            chatTerminationHandler.handleCancel(request.getChatId());
                         }
-                        return completeTermination(request, signalType, content);
+                        return chatTerminationHandler.completeTermination(request, signalType, content);
                     })
                     .onErrorResume(e -> handleError(request.getChatId(), e));
 
-            // 在 AI 响应前添加前置消息（可选）
-            // Flux<String> stringFlux = prefixMessage != null ? aiResponseFlux.startWith(prefixMessage) : aiResponseFlux;
             return aiResponseFlux;
 
         } catch (Exception e) {
@@ -136,64 +142,17 @@ public class ChatService {
         }
     }
 
-
+    /**
+     * 非流式实体对话（兼容保留：CodeSnippet 域调用入口，实现见 {@link ChatEntityService}）。
+     */
     public <T> T executeChatWithEntity(ChatRequest request, ChatClient userChatClient, Class<T> entity) {
-        try {
-            validateRequest(request);
-            List<Advisor> advisors = new ArrayList<>();
-            // 构建 AI 实体响应，增加超时配置（280秒，略小于 Netty 的 300 秒）
-            T entity1 = buildChatPrompt(userChatClient, request)
-                    .system(request.getSystemPrompt())
-                    .options(ChatOptions.builder()
-                            .model(getInnerModel())
-                            .maxTokens(8000)
-                            .build())
-                    .advisors(advisors)
-                    .call()
-                    .entity(entity);
-
-
-            return entity1;
-
-        } catch (io.netty.handler.timeout.ReadTimeoutException e) {
-            log.error("AI 请求超时，请检查网络连接或稍后重试: {}", e.getMessage(), e);
-            throw new RuntimeException("AI 服务响应超时，请稍后重试。如果问题持续存在，请联系管理员", e);
-        } catch (Exception e) {
-            log.error("executeChatWithEntity error:{}", e.getMessage(), e);
-            throw new RuntimeException("AI 服务调用失败: " + e.getMessage(), e);
-        }
-    }
-
-
-    private String getInnerModel() {
-        return modelConfigService.getInnerModel();
-    }
-
-    // meta ==> { "user_id", "knowledge_base_id", "document_id"}
-    private String buildBaseAccessFilter(List<String> knowledgeBaseIds) {
-
-        // 如果没有 ID，返回一个 false 的表达式
-        if (knowledgeBaseIds == null || knowledgeBaseIds.isEmpty()) {
-            return "knowledge_base_id in [\"___empty___\"]"; // 不让查询任何知识库
-        }
-        StringBuilder sb = new StringBuilder();
-        sb.append("knowledge_base_id in [");
-        for (int i = 0; i < knowledgeBaseIds.size(); i++) {
-            if (i != 0) {
-                sb.append(",");
-            }
-            sb.append("\"").append(knowledgeBaseIds.get(i)).append("\"");
-        }
-        sb.append("]");
-        log.info("Vector Search Filter SQL: {}", sb);
-        log.info("Vector Search Filter Parameter: {}", knowledgeBaseIds);
-        return sb.toString();
+        return chatEntityService.executeChatWithEntity(request, userChatClient, entity);
     }
 
     /**
-     * 1. 验证请求参数
+     * 请求参数校验（包内共享：{@link ChatEntityService} 复用）。
      */
-    private void validateRequest(ChatRequest request) {
+    static void validateRequest(ChatRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("ChatRequest cannot be null");
         }
@@ -209,9 +168,9 @@ public class ChatService {
     }
 
     /**
-     * 2. 构建聊天 Prompt（根据是否有媒体文件选择不同策略）
+     * 构建聊天 Prompt（根据是否有媒体文件选择不同策略；包内共享）。
      */
-    private ChatClient.ChatClientRequestSpec buildChatPrompt(ChatClient client, ChatRequest request) {
+    static ChatClient.ChatClientRequestSpec buildChatPrompt(ChatClient client, ChatRequest request) {
         if (request.getMedias() == null || request.getMedias().isEmpty()) {
             return client.prompt().user(p -> p.text(request.getUserPrompt()));
         } else {
@@ -221,7 +180,9 @@ public class ChatService {
         }
     }
 
-
+    /**
+     * 按请求的 {@code toolGroupKey} 从 {@link ToolRegistry} 取出启用的工具 Bean。
+     */
     private Object[] getEnabledToolObjects(ChatRequest request) {
         if (request == null) {
             return new Object[]{};
@@ -233,7 +194,7 @@ public class ChatService {
         }
         ArrayList<Object> objects = new ArrayList<>();
         for (String toolGroup : toolGroupKey) {
-            Object objectTool = MyToolAnnotationAspect.toolBeanMap.get(toolGroup);
+            Object objectTool = toolRegistry.getToolGroup(toolGroup);
             if (!Objects.isNull(objectTool)) {
                 objects.add(objectTool);
             }
@@ -241,107 +202,32 @@ public class ChatService {
         return objects.toArray();
     }
 
-    //
-    // private String[] getEnabledToolNames(ChatRequest request) {
-    //     if (request == null) {
-    //         return new String[]{};
-    //     }
-    //
-    //     if (request.getToolGroupKey() == null) {
-    //         return new String[]{};
-    //     }
-    //     Map<String, String> toolGroup = MyToolAnnotationAspect.toolInfoMap.get(request.getToolGroupKey());
-    //     if (CollectionUtils.isEmpty(toolGroup)) {
-    //         return new String[]{};
-    //     }
-    //
-    //     Set<String> availableToolNames = toolGroup.keySet();
-    //     if (CollectionUtils.isEmpty(request.getToolNames())) {
-    //         return new String[]{};
-    //     }
-    //
-    //     LinkedHashSet<String> filteredToolNames = new LinkedHashSet<>();
-    //     for (String toolName : request.getToolNames()) {
-    //         if (availableToolNames.contains(toolName)) {
-    //             filteredToolNames.add(toolName);
-    //         }
-    //     }
-    //
-    //     return filteredToolNames.toArray(String[]::new);
-    // }
-
     /**
-     * 3. 获取 MCP Tool 回调（可缓存优化）
+     * 把工具回调统一包装为 {@link ObservingToolCallback}，接入事件观测。
      */
-    private ToolCallback[] getToolCallbacks() {
-        return mcpToolCallbackProvider.getToolCallbacks();
-    }
-
-
-    /**
-     * 5. 处理用户取消
-     */
-    private void handleCancel(String chatId) {
-        log.info("用户主动取消对话 chatId:{}", chatId);
-    }
-
-    /**
-     * 6. 处理完成回调（释放锁 + 发布事件）
-     *
-     * <p>流终止时的收尾逻辑：持久化 AI 回复 + 释放分布式锁</p>
-     * <p>ON_COMPLETE 路径：先持久化，持久化失败也释放锁再抛出持久化异常，
-     *    保证锁在任何情况下都被释放</p>
-     * <p>ON_ERROR/CANCEL 路径：持久化和释放均为 best-effort，失败只记日志</p>
-     */
-    private Mono<Void> completeTermination(ChatRequest request, SignalType signalType, String content) {
-        Mono<Void> persist = Mono.<Void>fromRunnable(() ->
-                        persistAssistantMessage(request, signalType.toString(), content))
-                .subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic());
-        Mono<Void> release = safeReleaseLock(request.getLock());
-        if (signalType == SignalType.ON_COMPLETE) {
-            // 持久化失败 → 释放锁后重新抛出持久化异常；持久化成功 → 释放锁
-            return persist
-                    .onErrorResume(error -> release.then(Mono.error(error)))
-                    .then(release);
+    private ToolCallback[] wrapAll(ToolCallback[] callbacks, ToolExecutionEventBus eventBus) {
+        if (callbacks == null || callbacks.length == 0) {
+            return new ToolCallback[0];
         }
-        return persist.onErrorResume(error -> {
-                    log.error("聊天终止持久化失败, signalType={}", signalType, error);
-                    return Mono.empty();
-                })
-                .then(release.onErrorResume(error -> {
-                    log.error("聊天锁异步释放失败, signalType={}", signalType, error);
-                    return Mono.empty();
-                }));
+        ToolCallback[] wrapped = new ToolCallback[callbacks.length];
+        for (int i = 0; i < callbacks.length; i++) {
+            wrapped[i] = new ObservingToolCallback(callbacks[i], eventBus);
+        }
+        return wrapped;
     }
 
     /**
-     * 7. 安全释放分布式锁
+     * 合并两路工具回调（MCP + @MyTools）。
      */
-    private Mono<Void> safeReleaseLock(ChatLockHandle lock) {
-        return lock == null ? Mono.empty() : lock.release();
-    }
-
-    private void persistAssistantMessage(ChatRequest request, String signalType, String content) {
-        String persistedContent = content;
-        if ((persistedContent == null || persistedContent.isBlank()) && "onError".equalsIgnoreCase(signalType)) {
-            persistedContent = buildFriendlyErrorMessage(null);
-        }
-        if (persistedContent == null || persistedContent.isBlank()) {
-            return;
-        }
-
-        chatPersistenceService.appendAssistantMessage(
-                request.getType(),
-                request.getRole(),
-                request.getChatId(),
-                persistedContent,
-                signalType,
-                request.getChatOptions().getModel()
-        );
+    private static ToolCallback[] mergeToolCallbacks(ToolCallback[] first, ToolCallback[] second) {
+        ToolCallback[] merged = new ToolCallback[first.length + second.length];
+        System.arraycopy(first, 0, merged, 0, first.length);
+        System.arraycopy(second, 0, merged, first.length, second.length);
+        return merged;
     }
 
     /**
-     * 8. 错误处理
+     * 流内异常处理。
      */
     private Flux<ChatStreamPart> handleError(String chatId, Throwable e) {
         log.error("Chat Error [{}]: {}", chatId, e.getMessage());
@@ -399,90 +285,9 @@ public class ChatService {
         return value == null ? null : value.longValue();
     }
 
-    /** 合并过碎的同类增量，类型切换和 usage 元数据会立即刷出。 */
-    static Flux<ChatStreamPart> bufferChatParts(Flux<ChatStreamPart> source,
-                                                int maxChars,
-                                                Duration flushInterval) {
-        if (maxChars <= 0 || flushInterval == null || flushInterval.isNegative() || flushInterval.isZero()) {
-            throw new IllegalArgumentException("invalid stream buffer settings");
-        }
-        return Flux.defer(() -> {
-            StringBuilder content = new StringBuilder();
-            StringBuilder reasoning = new StringBuilder();
-            AtomicReference<String> type = new AtomicReference<>();
-            return source
-                    .bufferTimeout(maxChars, flushInterval)
-                    .concatMap(batch -> {
-                        List<ChatStreamPart> output = new ArrayList<>();
-                        ChatStreamPart.TokenUsage latestUsage = null;
-                        Long latestElapsedMs = null;
-                        for (ChatStreamPart part : batch) {
-                            if (part == null) continue;
-                            if (part.usage() != null) {
-                                latestUsage = part.usage();
-                            }
-                            if (part.elapsedMs() != null) {
-                                latestElapsedMs = part.elapsedMs();
-                            }
-
-                            if (part.reasoningContent() != null && !part.reasoningContent().isEmpty()) {
-                                if (type.get() != null && !"reasoning".equals(type.get())) {
-                                    flushBuffers(output, content, reasoning, type);
-                                }
-                                type.set("reasoning");
-                                reasoning.append(part.reasoningContent());
-                            }
-                            if (part.content() != null && !part.content().isEmpty()) {
-                                if (type.get() != null && !"content".equals(type.get())) {
-                                    flushBuffers(output, content, reasoning, type);
-                                }
-                                type.set("content");
-                                content.append(part.content());
-                            }
-
-                            StringBuilder target = "reasoning".equals(type.get()) ? reasoning : content;
-                            while (target.length() >= maxChars) {
-                                String chunk = target.substring(0, maxChars);
-                                target.delete(0, maxChars);
-                                output.add("reasoning".equals(type.get())
-                                        ? ChatStreamPart.reasoning(chunk) : ChatStreamPart.content(chunk));
-                            }
-                        }
-                        flushBuffers(output, content, reasoning, type);
-                        if (latestUsage != null) {
-                            output.add(ChatStreamPart.usage(latestUsage));
-                        }
-                        if (latestElapsedMs != null) {
-                            output.add(ChatStreamPart.elapsed(latestElapsedMs));
-                        }
-                        return Flux.fromIterable(output);
-                    })
-                    .concatWith(Flux.defer(() -> {
-                        List<ChatStreamPart> tail = new ArrayList<>();
-                        flushBuffers(tail, content, reasoning, type);
-                        return Flux.fromIterable(tail);
-                    }));
-        });
-    }
-
-    private static void flushBuffers(List<ChatStreamPart> output,
-                                     StringBuilder content,
-                                     StringBuilder reasoning,
-                                     AtomicReference<String> type) {
-        if (reasoning.length() > 0) {
-            output.add(ChatStreamPart.reasoning(reasoning.toString()));
-            reasoning.setLength(0);
-        }
-        if (content.length() > 0) {
-            output.add(ChatStreamPart.content(content.toString()));
-            content.setLength(0);
-        }
-        type.set(null);
-    }
-
     /**
      * accumulatePerSubscription 的简化版（不累积内容），仅用于单元测试。
-     * 生产代码请使用 accumulatePerSubscription。
+     * 生产代码请使用 {@link ChatTerminationHandler#accumulateChatParts}。
      */
     static Flux<String> completeBeforeTermination(Flux<String> source,
                                                    Consumer<SignalType> onTerminate) {
@@ -501,18 +306,9 @@ public class ChatService {
     }
 
     /**
-     * 累积流式内容并在流终止时执行一次性收尾回调。
-     *
-     * <p>核心设计：</p>
-     * <ol>
-     *   <li>Flux.defer — 每次订阅创建独立的状态（累积器、终止标志、结果 Sink）</li>
-     *   <li>materialize/concatMap/dematerialize — 拦截 ON_COMPLETE/ON_ERROR 信号，
-     *       在放行前等待收尾完成（下游看不到终止信号直到收尾结束）</li>
-     *   <li>Sinks.One + fire-and-forget subscribe — 收尾作为独立订阅运行，
-     *       不受下游取消影响（下游取消只取消对结果的等待，不取消收尾本身）</li>
-     *   <li>AtomicBoolean terminated — 保证收尾只执行一次（ON_COMPLETE/ON_ERROR/CANCEL
-     *       三者只有一个能触发收尾）</li>
-     * </ol>
+     * String 版本的流式累积（仅测试使用）。生产使用
+     * {@link ChatTerminationHandler#accumulateChatParts}（ChatStreamPart 版本），
+     * 两者语义重复，勿在生产调用本方法。
      *
      * @param source      原始流式响应
      * @param onTerminate 收尾回调，接收（信号类型, 累积内容），返回收尾 Mono
@@ -561,52 +357,6 @@ public class ChatService {
                                         error -> log.error("聊天取消异步清理失败", error));
                     });
         });
-    }
-
-    static Flux<ChatStreamPart> accumulateChatParts(Flux<ChatStreamPart> source,
-                                                    BiFunction<SignalType, String, Mono<Void>> onTerminate) {
-        return Flux.defer(() -> {
-            StringBuilder contentAccumulator = new StringBuilder();
-            AtomicBoolean terminated = new AtomicBoolean();
-            Sinks.One<Void> cleanupResult = Sinks.one();
-            BiFunction<SignalType, String, Mono<Void>> startCleanup = (signalType, content) -> {
-                if (terminated.compareAndSet(false, true)) {
-                    onTerminate.apply(signalType, content).subscribe(
-                            ignored -> { },
-                            cleanupResult::tryEmitError,
-                            cleanupResult::tryEmitEmpty);
-                }
-                return cleanupResult.asMono();
-            };
-            return source
-                    .doOnNext(part -> {
-                        if (part != null && part.content() != null) contentAccumulator.append(part.content());
-                    })
-                    .materialize()
-                    .concatMap(signal -> {
-                        if (signal.getType() == SignalType.ON_COMPLETE || signal.getType() == SignalType.ON_ERROR) {
-                            Mono<Void> cleanup = startCleanup.apply(signal.getType(), contentAccumulator.toString());
-                            if (signal.getType() == SignalType.ON_ERROR) {
-                                cleanup = cleanup.onErrorResume(error -> {
-                                    log.error("聊天异常收尾失败，保留原始异常", error);
-                                    return Mono.empty();
-                                });
-                            }
-                            return cleanup.thenReturn(signal);
-                        }
-                        return Mono.just(signal);
-                    })
-                    .<ChatStreamPart>dematerialize()
-                    .doOnCancel(() -> startCleanup.apply(SignalType.CANCEL, contentAccumulator.toString())
-                            .subscribe(ignored -> { }, error -> log.error("聊天取消异步清理失败", error)));
-        });
-    }
-
-    /**
-     * 9. 构建友好的错误消息
-     */
-    private String buildFriendlyErrorMessage(String message) {
-        return "⚠️错误信息: " + message;
     }
 
 }

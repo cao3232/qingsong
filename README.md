@@ -13,7 +13,7 @@
 
 多角色对话 · SSE 流式输出 · 会话历史 · TTS 语音 · PDF 阅读 · RAG 知识库 · AI 工具调用 · 模型管理
 
-**🤝 本项目已链接并认可 LINUX DO 社区,内置 L站(LinuxDo)AI 接入预设。**
+**🤝 本项目已链接并认可 LINUX DO 社区**
 
 </div>
 
@@ -123,4 +123,4 @@ npm run dev                                                                # :80
 
 > **真诚、友善、团结、专业** —— LINUX DO 社区
 
-[学AI来LinuxDo](https://linux.do/)
+[学AI就来Linux DO](https://linux.do/)

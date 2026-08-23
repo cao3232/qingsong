@@ -5,6 +5,7 @@
       <div class="reader-title"><strong>{{ fileName || 'PDF 阅读器' }}</strong><span v-if="fileName">{{ progressText
       }}</span></div>
       <button v-if="file" class="settings-button" type="button" @click="toggleOutline">目录</button>
+      <button v-if="file" class="settings-button" type="button" @click="closeFile">首页</button>
       <button class="open-button" type="button" @click="selectFile">打开 PDF</button>
       <button class="settings-button" type="button" @click="showVoiceSettings = !showVoiceSettings">语音设置</button>
       <input ref="fileInputRef" class="hidden-file" type="file" accept="application/pdf,.pdf"
@@ -31,14 +32,32 @@
         '当前使用预置音色' }}</span>
     </section>
 
-    <section v-if="!file" class="upload-state" :class="{ dragging: isDragging }" @click="selectFile"
-      @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false" @drop.prevent="handleDrop">
-      <div class="upload-icon">PDF</div>
-      <h1>开始阅读一本 PDF</h1>
-      <p>选择文件或将 PDF 拖到这里，加载后即可朗读</p>
-      <button type="button" @click.stop="selectFile">选择 PDF 文件</button>
-      <small v-if="errorMessage">{{ errorMessage }}</small>
-    </section>
+    <div v-if="!file" class="reader-home">
+      <section class="upload-state" :class="{ dragging: isDragging }" @click="selectFile"
+        @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false" @drop.prevent="handleDrop">
+        <div class="upload-icon">PDF</div>
+        <h1>开始阅读一本 PDF</h1>
+        <p>选择文件或将 PDF 拖到这里，加载后即可朗读</p>
+        <button type="button" @click.stop="selectFile">选择 PDF 文件</button>
+        <small v-if="errorMessage">{{ errorMessage }}</small>
+      </section>
+
+      <section v-if="recentPdfs.length" class="recent-section" @click.stop>
+        <div class="recent-header">
+          <span>最近阅读</span>
+          <button type="button" class="recent-clear" @click.stop="clearRecent">清空</button>
+        </div>
+        <ul class="recent-list">
+          <li v-for="recent in recentPdfs" :key="recent.id" class="recent-row">
+            <button type="button" class="recent-item" :title="recent.name" @click.stop="openRecent(recent.id)">
+              <span class="recent-name">{{ recent.name }}</span>
+              <span class="recent-meta">{{ formatFileSize(recent.size) }}</span>
+            </button>
+            <button type="button" class="recent-remove" title="移除记录" @click.stop="removeRecent(recent.id)">×</button>
+          </li>
+        </ul>
+      </section>
+    </div>
 
     <template v-else>
       <div class="reader-body">
@@ -81,12 +100,19 @@ import { PDFReaderViewer } from '../components/index.js'
 import { usePdfReaderPage } from '../composables/index.js'
 
 const {
-  apiKey, cloneSample, errorMessage, file, fileInputRef, fileName, flatOutline, goBack, handleDrop, handleFileInput,
-  handleLoadError, isDragging, isPlaying, jumpToOutline, onTextDone, pageNumber, play, playbackRate,
-  progressText, saveApiKey, selectFile, setPage, setPageCount, setPageText, setPlaybackRate, setScale, setVoice,
-  setVoiceDesign, setOutline, showOutline, stop, toggleOutline, TTS_PLAYBACK_RATES,
-  TTS_VOICES, voice, voiceDesign, scale
+  apiKey, clearRecent, closeFile, cloneSample, errorMessage, file, fileInputRef, fileName, flatOutline, goBack,
+  handleDrop, handleFileInput, handleLoadError, isDragging, isPlaying, jumpToOutline, onTextDone, openRecent,
+  pageNumber, play, playbackRate, progressText, recentPdfs, removeRecent, saveApiKey, selectFile, setPage,
+  setPageCount, setPageText, setPlaybackRate, setScale, setVoice, setVoiceDesign, setOutline, showOutline, stop,
+  toggleOutline, TTS_PLAYBACK_RATES, TTS_VOICES, voice, voiceDesign, scale
 } = usePdfReaderPage()
+
+const formatFileSize = bytes => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
 
 const showVoiceSettings = ref(false)
 </script>
@@ -335,6 +361,121 @@ const showVoiceSettings = ref(false)
 .upload-state small {
   display: block;
   margin-top: 16px;
+  color: #b42318;
+}
+
+.reader-home {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 24px 16px;
+  overflow-y: auto;
+}
+
+.reader-home .upload-state {
+  margin: 0;
+}
+
+.recent-section {
+  width: min(560px, 100%);
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.recent-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.recent-clear {
+  border: 0;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.recent-clear:hover {
+  color: #0f766e;
+}
+
+.recent-list {
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.recent-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recent-row + .recent-row {
+  border-top: 1px solid #f1f5f9;
+}
+
+.recent-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 4px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.recent-item:hover .recent-name {
+  color: #0f766e;
+}
+
+.recent-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #334155;
+  font-size: 13px;
+}
+
+.recent-meta {
+  flex: none;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.recent-remove {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.recent-remove:hover {
+  background: #f1f5f9;
   color: #b42318;
 }
 

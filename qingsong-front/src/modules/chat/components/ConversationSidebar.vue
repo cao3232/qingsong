@@ -867,7 +867,7 @@ const handleJumpToMessage = (messageData) => {
 
   const enhancedMessageData = {
     ...messageData,
-    messageId: messageData.messageId || messageData.id,
+    messageNo: messageData.messageNo || messageData.id,
     messageIndex: messageIndex >= 0 ? messageIndex : -1,
     totalMessages: props.currentMessages.length,
   };

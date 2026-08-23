@@ -1,9 +1,10 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useDialog, useMessage } from 'naive-ui'
 import { useVirtualizer } from '@tanstack/vue-virtual'
-import { chatAPI, createClientMessageId } from '../services/index.js'
+import { chatAPI, isConnectionError } from '../services/index.js'
 import { useChatStore } from '../stores/index.js'
 import { useTtsPlayback } from './useTtsPlayback.js'
+import { isLocalOnlyChatId } from './useAIChatPage.js'
 import { shouldAutoFollowMessages } from '../utils/index.js'
 import { registerVirtualListController } from './virtualListController.js'
 
@@ -13,6 +14,14 @@ const CONTEXT_SIZE_STORAGE_KEY = 'ai-chat-context-size'
 
 // 未测量消息的估算高度（首次渲染/滚到未测区时使用，实测后自动替换）
 const ESTIMATED_MESSAGE_HEIGHT = 300
+
+// 后端下发的 messageNo 为 32 位 hex；本地客户端 id 形如 user-xxx，重试校验时无需传给后端
+const SERVER_MESSAGE_ID_PATTERN = /^[0-9a-f]{32}$/i
+
+const resolveServerMessageNo = message => {
+  const id = message?.messageNo || message?.id || ''
+  return SERVER_MESSAGE_ID_PATTERN.test(id) ? id : ''
+}
 
 export const useChatWorkspace = (props, emit, options = {}) => {
   const message = useMessage()
@@ -39,7 +48,7 @@ export const useChatWorkspace = (props, emit, options = {}) => {
       estimateSize: () => ESTIMATED_MESSAGE_HEIGHT,
       overscan: 6,
       getItemKey: index =>
-        props.currentMessages[index]?.messageId || props.currentMessages[index]?.id || index,
+        props.currentMessages[index]?.messageNo || props.currentMessages[index]?.id || index,
       // 测量含 margin 的完整行高（spacing 由 .virtual-message-slot 的 margin-bottom 承担）
       measureElement: el => {
         const style = typeof window !== 'undefined' ? window.getComputedStyle(el) : null
@@ -128,7 +137,7 @@ export const useChatWorkspace = (props, emit, options = {}) => {
 
     // 搜索结果存的是消息 id：先映射回真实索引，再交给虚拟列表定位
     const messageIndex = props.currentMessages.findIndex(
-      message => String(message?.messageId || message?.id) === String(id)
+      message => String(message?.messageNo || message?.id) === String(id)
     )
     if (messageIndex < 0) return
 
@@ -145,7 +154,7 @@ export const useChatWorkspace = (props, emit, options = {}) => {
 
     const matches = props.currentMessages
       .filter(message => String(message?.content || '').toLowerCase().includes(query))
-      .map(message => message.messageId || message.id)
+      .map(message => message.messageNo || message.id)
       .filter(Boolean)
 
     searchResults.value = matches
@@ -192,7 +201,7 @@ export const useChatWorkspace = (props, emit, options = {}) => {
 
     if (index < 0 && item.id) {
       index = props.currentMessages.findIndex(
-        message => String(message?.messageId || message?.id) === String(item.id)
+        message => String(message?.messageNo || message?.id) === String(item.id)
       )
     }
 
@@ -799,6 +808,33 @@ export const useChatWorkspace = (props, emit, options = {}) => {
     setTimeout(adjustTextareaHeight, 0)
   }
 
+  // 预分配服务端 messageNo 与会话身份；连接失败给出明确提示，其余失败提示获取失败。
+  // 新会话（本地 temp 占位 id）由后端预建会话行并返回真实 sessionNo，重试时才会话身份稳定可比对。
+  const ensureMessageNo = async () => {
+    let pre
+    try {
+      const currentId = props.currentChatId ? String(props.currentChatId) : null
+      const hasRealSession = currentId && !isLocalOnlyChatId(currentId)
+      pre = await chatAPI.preChat({
+        role: props.selectedRoleName || 'user',
+        bizType: 'chat',
+        sessionNo: hasRealSession ? currentId : null
+      })
+    } catch (error) {
+      message.error(
+        isConnectionError(error)
+          ? '无法连接服务器，请检查网络或后端服务'
+          : '获取消息号失败，请稍后重试'
+      )
+      return null
+    }
+    if (!pre?.messageNo) {
+      message.error('获取消息号失败，请稍后重试')
+      return null
+    }
+    return pre
+  }
+
   const sendMessage = async () => {
     if (props.isStreaming) {
       return
@@ -811,10 +847,16 @@ export const useChatWorkspace = (props, emit, options = {}) => {
 
     const outgoingPrompt = messageContent || buildAttachmentFallbackPrompt()
 
-    const userMessageId = createClientMessageId('user')
+    // 预分配服务端 messageNo 与会话身份：每条用户消息发送前都有后端 id，重试时才可比对
+    const pre = await ensureMessageNo()
+    if (!pre) {
+      return
+    }
+    const userMessageNo = pre.messageNo
+
     const userMessage = {
-      id: userMessageId,
-      messageId: userMessageId,
+      id: userMessageNo,
+      messageNo: userMessageNo,
       hasAccurateTimestamp: true,
       role: 'user',
       content: outgoingPrompt,
@@ -829,6 +871,7 @@ export const useChatWorkspace = (props, emit, options = {}) => {
 
     const formData = new FormData()
     formData.append('prompt', outgoingPrompt)
+    formData.append('messageNo', userMessageNo)
 
     attachedFiles.value.forEach(file => {
       formData.append('files', file)
@@ -836,7 +879,9 @@ export const useChatWorkspace = (props, emit, options = {}) => {
 
     appendSharedMessageParams(formData)
 
-    emit('send-message', formData, props.currentChatId)
+    // 新会话时 pre 已预建会话行：用返回的真实 sessionNo 作为本次 chatId，替换本地 temp 占位 id
+    const effectiveChatId = pre.sessionNo || props.currentChatId
+    emit('send-message', formData, effectiveChatId)
 
     attachedFiles.value = []
   }
@@ -863,7 +908,7 @@ export const useChatWorkspace = (props, emit, options = {}) => {
     }
 
     let retryUserContent = failedMessage.content
-    let targetMessageId = failedMessage.messageId || failedMessage.id || ''
+    let targetMessageNo = resolveServerMessageNo(failedMessage)
     let remainingMessages = props.currentMessages.slice(0, messageIndex)
 
     if (failedMessage.role === 'assistant') {
@@ -871,7 +916,7 @@ export const useChatWorkspace = (props, emit, options = {}) => {
       for (let i = remainingMessages.length - 1; i >= 0; i--) {
         if (remainingMessages[i].role === 'user') {
           userPrompt = remainingMessages[i].content
-          targetMessageId = remainingMessages[i].messageId || remainingMessages[i].id || ''
+          targetMessageNo = resolveServerMessageNo(remainingMessages[i])
           remainingMessages = remainingMessages.slice(0, i)
           break
         }
@@ -883,19 +928,27 @@ export const useChatWorkspace = (props, emit, options = {}) => {
       retryUserContent = userPrompt
     }
 
+    // 重试需要原始 messageNo 供后端比对（Flow A：替换消息复用同一 id）；缺失时预分配一个新的
+    if (!targetMessageNo) {
+      const pre = await ensureMessageNo()
+      if (!pre) {
+        return
+      }
+      targetMessageNo = pre.messageNo
+    }
+
     emit('update:currentMessages', remainingMessages)
     await nextTick()
 
     const formData = new FormData()
     formData.append('prompt', retryUserContent)
     formData.append('retry', true)
-    formData.append('messageId', targetMessageId)
+    formData.append('messageNo', targetMessageNo)
     appendSharedMessageParams(formData)
 
-    const retryUserMessageId = createClientMessageId('user')
     const retryUserMessage = {
-      id: retryUserMessageId,
-      messageId: retryUserMessageId,
+      id: targetMessageNo,
+      messageNo: targetMessageNo,
       hasAccurateTimestamp: true,
       role: 'user',
       content: retryUserContent,
@@ -939,19 +992,28 @@ export const useChatWorkspace = (props, emit, options = {}) => {
 
     const remainingMessages = props.currentMessages.slice(0, messageIndex)
 
+    // 编辑复用原用户消息的 messageNo（Flow A）；缺失时预分配一个新的
+    let targetMessageNo = resolveServerMessageNo(userMessage)
+    if (!targetMessageNo) {
+      const pre = await ensureMessageNo()
+      if (!pre) {
+        return
+      }
+      targetMessageNo = pre.messageNo
+    }
+
     emit('update:currentMessages', remainingMessages)
     await nextTick()
 
     const formData = new FormData()
     formData.append('prompt', targetContent)
     formData.append('retry', true)
-    formData.append('messageId', userMessage.messageId || userMessage.id || '')
+    formData.append('messageNo', targetMessageNo)
     appendSharedMessageParams(formData)
 
-    const editUserMessageId = createClientMessageId('user')
     const editUserMessage = {
-      id: editUserMessageId,
-      messageId: editUserMessageId,
+      id: targetMessageNo,
+      messageNo: targetMessageNo,
       hasAccurateTimestamp: true,
       role: 'user',
       content: targetContent,
@@ -961,6 +1023,16 @@ export const useChatWorkspace = (props, emit, options = {}) => {
     emit('update:currentMessages', [...remainingMessages, editUserMessage])
     setTimeout(scrollToBottom, 100)
     emit('send-message', formData, props.currentChatId)
+  }
+
+  // 会话已推进导致重试被拒：通知页面重新拉取当前会话的服务端消息
+  const handleRefreshSession = () => {
+    emit('refresh-session', props.currentChatId)
+  }
+
+  // 会话已被删除：通知页面回到全新的本地会话
+  const handleSessionDeleted = () => {
+    emit('session-deleted')
   }
 
 
@@ -1011,6 +1083,8 @@ export const useChatWorkspace = (props, emit, options = {}) => {
     handlePaste,
     handleRetryMessage,
     handleEditMessage,
+    handleRefreshSession,
+    handleSessionDeleted,
     handleSelectPhrase,
     handleSendEmail,
     inputRef,

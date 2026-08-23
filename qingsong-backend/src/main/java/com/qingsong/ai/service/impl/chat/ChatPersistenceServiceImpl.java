@@ -41,8 +41,12 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
     private static final String CONTENT_FORMAT_TEXT = "TEXT";
     private static final String CONTENT_FORMAT_MARKDOWN = "MARKDOWN";
     private static final String MESSAGE_METADATA_ID = "messageId";
+
     private static final String MESSAGE_METADATA_CREATED_AT = "createdAt";
 
+    private static final String RETRY_STALE_CODE = "CHAT_RETRY_STALE";
+
+    private static final String SESSION_DELETED_CODE = "CHAT_SESSION_DELETED";
     private final AiChatSessionMapper sessionMapper;
     private final AiChatMessageMapper messageMapper;
     private final ChatCacheService chatCacheService;
@@ -56,9 +60,18 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void appendUserMessage(String bizType, String roleCode, String sessionNo, String content) {
+    public void appendUserMessage(String bizType, String roleCode, String sessionNo, String content, String messageNo) {
         AiChatSession session = getOrCreateSession(bizType, roleCode, sessionNo, content);
-        AiChatMessage persisted = persistMessage(session, buildUserMessage(content), MESSAGE_STATUS_SUCCESS, null, null);
+        // 防抖幂等：同一 (session, messageNo) 的用户消息已落库（双击/网络重发）则跳过，避免重复写入
+        if (StringUtils.hasText(messageNo) && existsUserMessage(session.getId(), messageNo)) {
+            return;
+        }
+        // 空会话的首条消息：标题默认取该消息内容（会话由 /chat/pre 预建时标题为 roleCode，这里补齐"标题=首条消息"）
+        boolean emptySession = session.getMessageCount() == null || session.getMessageCount() == 0;
+        if (emptySession) {
+            session.setTitle(buildSessionTitle(content, session.getRoleCode()));
+        }
+        AiChatMessage persisted = persistMessage(session, buildUserMessage(content), MESSAGE_STATUS_SUCCESS, null, null, messageNo);
         updateSessionAfterMessage(session, persisted);
         // 添加到缓存中
         chatCacheService.appendActiveMessage(sessionNo, toMessage(persisted));
@@ -73,7 +86,7 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
 
         AiChatSession session = getOrCreateSession(bizType, roleCode, sessionNo, roleCode);
         Message assistantMessage = new AssistantMessage(content);
-        AiChatMessage persisted = persistMessage(session, assistantMessage, normalizeStatus(status), isSuccessStatus(status) ? null : content, chatModel);
+        AiChatMessage persisted = persistMessage(session, assistantMessage, normalizeStatus(status), isSuccessStatus(status) ? null : content, chatModel, null);
         updateSessionAfterMessage(session, persisted);
 
         chatCacheService.appendActiveMessage(sessionNo, toMessage(persisted));
@@ -220,12 +233,9 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
     private AiChatSession getOrCreateSession(String bizType, String roleCode, String sessionNo, String defaultTitle) {
         AiChatSession existing = findSessionBySessionNo(sessionNo, false, false);
         if (existing != null) {
+            // 会话已被删除（另一窗口删除）：拒绝继续写入，避免静默"复活"撤销删除
             if (isDeleted(existing)) {
-                existing.setDeleted(0);
-                existing.setStatus(SESSION_STATUS_ACTIVE);
-                existing.setTitle(buildSessionTitle(defaultTitle, roleCode));
-                existing.setUpdatedAt(LocalDateTime.now());
-                sessionMapper.updateById(existing);
+                throw new BusinessException("会话已删除，无法继续发送", SESSION_DELETED_CODE);
             }
             return existing;
         }
@@ -275,10 +285,10 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
         return session;
     }
 
-    private AiChatMessage persistMessage(AiChatSession session, Message message, String status, String errorMessage, String chatModel) {
+    private AiChatMessage persistMessage(AiChatSession session, Message message, String status, String errorMessage, String chatModel, String messageNo) {
         LocalDateTime now = LocalDateTime.now();
         AiChatMessage entity = new AiChatMessage();
-        entity.setMessageNo(generateMessageNo());
+        entity.setMessageNo(StringUtils.hasText(messageNo) ? messageNo : generateMessageNo());
         entity.setSessionId(session.getId());
         entity.setSeqNo(nextSequence(session.getId()));
         entity.setMessageType(message.getMessageType().name());
@@ -304,10 +314,21 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
         return latest == null ? 1 : latest.getSeqNo() + 1;
     }
 
+    private boolean existsUserMessage(Long sessionId, String messageNo) {
+        Long count = messageMapper.selectCount(new QueryWrapper<AiChatMessage>()
+                .eq("session_id", sessionId)
+                .eq("message_no", messageNo)
+                .eq("deleted", 0));
+        return count != null && count > 0;
+    }
+
     private void updateSessionAfterMessage(AiChatSession session, AiChatMessage message) {
         session.setMessageCount((session.getMessageCount() == null ? 0 : session.getMessageCount()) + 1);
         session.setLastMessageId(message.getId());
         session.setLastMessageAt(message.getCreatedAt());
+        if ("USER".equalsIgnoreCase(message.getMessageType())) {
+            session.setLastUserMessageNo(message.getMessageNo());
+        }
         session.setUpdatedAt(LocalDateTime.now());
         sessionMapper.updateById(session);
         refreshSessionMetaCache(session);
@@ -325,6 +346,7 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
         history.setBizType(session.getBizType());
         history.setSessionDbId(session.getId());
         history.setMessageCount(session.getMessageCount());
+        history.setLastUserMessageNo(session.getLastUserMessageNo());
         history.setCreatedAt(session.getCreatedAt());
         history.setLastMessageAt(session.getLastMessageAt());
         history.setExists(Boolean.TRUE);
@@ -339,6 +361,7 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
         session.setRoleCode(sessionMeta.getRole());
         session.setTitle(sessionMeta.getTitle());
         session.setMessageCount(sessionMeta.getMessageCount());
+        session.setLastUserMessageNo(sessionMeta.getLastUserMessageNo());
         session.setDeleted(0);
         session.setCreatedAt(sessionMeta.getCreatedAt());
         session.setLastMessageAt(sessionMeta.getLastMessageAt());
@@ -410,6 +433,13 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
         return base.length() > 30 ? base.substring(0, 30) : base;
     }
 
+    /**
+     * 删除"最后一轮"（最后一条消息，若为 AI 回复则连带前一条用户消息），并重算会话计数。
+     *
+     * <p>⚠️ 该"删最后一轮"业务规则在 Redis 缓存层有<b>另一份</b>实现：
+     * {@link ChatCacheServiceImpl#deleteLastRound}（removeLastRound）。
+     * 两者必须保持一致——新增消息类型（如工具消息）时，两处同步修改，否则 DB 与缓存会不一致。</p>
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteLastRound(String sessionNo) {
@@ -474,6 +504,16 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
             session.setLastMessageId(null);
             session.setLastMessageAt(null);
         }
+        // 同步刷新最后一条 USER 消息 ID，保证重试校验基于最新轮次
+        AiChatMessage lastUser = messageMapper.selectOne(
+                new QueryWrapper<AiChatMessage>()
+                        .eq("session_id", session.getId())
+                        .eq("deleted", 0)
+                        .eq("message_type", "USER")
+                        .orderByDesc("seq_no")
+                        .last("LIMIT 1")
+        );
+        session.setLastUserMessageNo(lastUser != null ? lastUser.getMessageNo() : null);
         session.setUpdatedAt(LocalDateTime.now());
         sessionMapper.updateById(session);
         // 同步刷新 Redis 会话元数据缓存，避免重试后基于过期的 messageCount 累加导致计数虚高
@@ -481,49 +521,49 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
     }
 
     @Override
-    public void validateRetry(String sessionNo, String messageId, String prompt) {
+    public void validateRetry(String sessionNo, String messageNo) {
         AiChatSession session = findSessionBySessionNo(sessionNo, false, false);
         if (session == null || isDeleted(session)) {
             throw new BusinessException("会话不存在，无法重试");
         }
-        AiChatMessage lastMessage = messageMapper.selectOne(
+        // 前端无后端消息ID：仅当后端也没有任何用户消息记录（刚发送、未落库）时允许重试
+        if (!StringUtils.hasText(messageNo)) {
+            if (session.getLastUserMessageNo() == null) {
+                return;
+            }
+            throw new BusinessException("会话最后一条消息已变化，无法重试", RETRY_STALE_CODE);
+        }
+        AiChatMessage target = messageMapper.selectOne(
                 new QueryWrapper<AiChatMessage>()
                         .eq("session_id", session.getId())
+                        .eq("message_no", messageNo)
                         .eq("deleted", 0)
-                        .orderByDesc("seq_no")
                         .last("LIMIT 1")
         );
-        if (lastMessage == null) {
-            throw new BusinessException("会话最后一条消息不存在，无法重试");
+        // 后端无此记录：仅当会话尚未落库任何用户消息（请求在落库前失败）时允许；否则会话已有轮次，删轮会误删
+        if (target == null) {
+            if (session.getLastUserMessageNo() == null) {
+                return;
+            }
+            throw new BusinessException("会话最后一条消息已变化，无法重试", RETRY_STALE_CODE);
         }
-
-        // 定位最后一条 USER 消息（重试/编辑的目标轮次）
-        AiChatMessage lastUser = lastMessage;
-        if ("ASSISTANT".equalsIgnoreCase(lastMessage.getMessageType())) {
-            lastUser = messageMapper.selectOne(
-                    new QueryWrapper<AiChatMessage>()
-                            .eq("session_id", session.getId())
-                            .eq("deleted", 0)
-                            .lt("seq_no", lastMessage.getSeqNo())
-                            .orderByDesc("seq_no")
-                            .last("LIMIT 1")
-            );
-        }
-        if (lastUser == null || !"USER".equalsIgnoreCase(lastUser.getMessageType())) {
+        if (!"USER".equalsIgnoreCase(target.getMessageType())) {
             throw new BusinessException("未找到可重试的用户消息");
         }
-
-        // 优先：messageId 与最后一条 USER 消息的 messageNo 一致（历史消息有服务端 ID）
-        if (StringUtils.hasText(messageId) && messageId.equals(lastUser.getMessageNo())) {
-            return;
+        // 已落库的：必须是最后一轮的用户消息；否则会话已推进，禁止重试
+        if (!messageNo.equals(session.getLastUserMessageNo())) {
+            throw new BusinessException("会话最后一条消息已变化，无法重试", RETRY_STALE_CODE);
         }
+    }
 
-        // 兜底：比对最后一条 USER 消息的内容（兼容当前会话内新建、无服务端 messageNo 的消息）
-        if (StringUtils.hasText(prompt) && prompt.equals(lastUser.getContent())) {
-            return;
-        }
-
-        throw new BusinessException("会话最后一条消息已变化，无法重试");
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void retryLastRound(String bizType, String roleCode, String sessionNo, String messageNo, String content) {
+        validateRetry(sessionNo, messageNo);
+        // 校验通过后才清理 Redis 消息缓存，避免校验失败时缓存已被截断导致重新拉取丢失最新消息
+        chatCacheService.deleteLastRound(sessionNo);
+        deleteLastRound(sessionNo);
+        appendUserMessage(bizType, roleCode, sessionNo, content, messageNo);
     }
     private boolean isDeleted(AiChatSession session) {
         return session.getDeleted() != null && session.getDeleted() == 1;

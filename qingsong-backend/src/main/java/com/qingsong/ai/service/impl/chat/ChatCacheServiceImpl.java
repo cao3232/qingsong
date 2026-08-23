@@ -111,6 +111,13 @@ public class ChatCacheServiceImpl implements ChatCacheService {
         ));
     }
 
+    /**
+     * 删除"最后一轮"（最后一条消息，若为 AI 回复则连带前一条用户消息）。
+     *
+     * <p>⚠️ 该"删最后一轮"业务规则在 DB 持久化层有<b>另一份</b>实现：
+     * {@link ChatPersistenceServiceImpl#deleteLastRound}。
+     * 两者必须保持一致——新增消息类型（如工具消息）时，两处同步修改，否则 DB 与缓存会不一致。</p>
+     */
     @Override
     public void deleteLastRound(String sessionNo) {
         clearLastRoundFromCache(sessionNo, this::getContextMessages, this::cacheContextMessages);

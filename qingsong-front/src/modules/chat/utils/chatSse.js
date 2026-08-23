@@ -1,4 +1,4 @@
-const KNOWN_EVENT_TYPES = new Set(['meta', 'reasoning', 'chunk', 'done', 'error'])
+const KNOWN_EVENT_TYPES = new Set(['meta', 'reasoning', 'chunk', 'tool_call', 'tool_result', 'done', 'error'])
 
 export class ChatSseProtocolError extends Error {
   constructor(message) {
@@ -63,6 +63,15 @@ const validateEventData = (eventType, data) => {
     return
   }
 
+  if (eventType === 'tool_call' || eventType === 'tool_result') {
+    requireString(data, 'toolCallId', eventType)
+    requireString(data, 'name', eventType)
+    requireString(data, 'status', eventType)
+    if ('sequence' in data) requireSequence(data, eventType)
+    if ('requestId' in data) requireString(data, 'requestId', eventType)
+    return
+  }
+
   if (eventType === 'done') {
     requireString(data, 'chatId', eventType)
     if ('sequence' in data) requireSequence(data, eventType)
@@ -80,6 +89,9 @@ const validateEventData = (eventType, data) => {
     }
     if ('elapsedMs' in data && (!Number.isInteger(data.elapsedMs) || data.elapsedMs < 0)) {
       throw new ChatSseProtocolError('done 事件包含无效的 elapsedMs 字段')
+    }
+    if (data.tools != null && !Array.isArray(data.tools)) {
+      throw new ChatSseProtocolError('done 事件的 tools 必须是数组')
     }
     return
   }
@@ -184,6 +196,7 @@ export const createChatSseState = () => ({
   requestId: null,
   usage: null,
   elapsedMs: null,
+  tools: [],
   nextSequence: null
 })
 
@@ -218,6 +231,22 @@ const validateEventRequest = (state, event) => {
   }
 }
 
+/** 按 toolCallId 合并工具事件（call 提供 args/status=running，result 回填状态与结果）。 */
+const upsertTool = (state, data) => {
+  let tool = state.tools.find(item => item.toolCallId === data.toolCallId)
+  if (!tool) {
+    tool = { toolCallId: data.toolCallId, name: data.name, status: data.status || 'running' }
+    state.tools.push(tool)
+  } else {
+    tool.name = data.name
+    tool.status = data.status || tool.status
+  }
+  if (data.args != null) tool.args = data.args
+  if (data.result != null) tool.result = data.result
+  if (data.error != null) tool.error = data.error
+  if (data.durationMs != null) tool.durationMs = data.durationMs
+}
+
 export const applyChatSseEvent = (state, event) => {
   if (state.completed) {
     throw new ChatSseProtocolError('done 事件后不允许出现其他事件')
@@ -248,6 +277,12 @@ export const applyChatSseEvent = (state, event) => {
     return state
   }
 
+  if (event.type === 'tool_call' || event.type === 'tool_result') {
+    state.nextSequence = nextSequence
+    upsertTool(state, event.data)
+    return state
+  }
+
   if (event.type === 'done') {
     if (state.chatId && state.chatId !== event.data.chatId) {
       throw new ChatSseProtocolError('done 事件的 chatId 与 meta 不一致')
@@ -258,6 +293,8 @@ export const applyChatSseEvent = (state, event) => {
     state.finishReason = event.data.finishReason
     state.usage = event.data.usage || null
     state.elapsedMs = event.data.elapsedMs ?? null
+    // done.tools 是后端按 toolCallId 合并的完整汇总，优先采用
+    if (Array.isArray(event.data.tools)) state.tools = event.data.tools
     return state
   }
 
@@ -297,12 +334,13 @@ const completedResult = state => ({
   chatId: state.chatId,
   requestId: state.requestId,
   usage: state.usage,
-  elapsedMs: state.elapsedMs
+  elapsedMs: state.elapsedMs,
+  tools: state.tools
 })
 
 export const consumeChatSseReader = async (
   reader,
-  { onContent = () => {}, onReasoning = () => {}, isCancelled = () => false } = {}
+  { onContent = () => {}, onReasoning = () => {}, onToolCall = () => {}, onToolResult = () => {}, isCancelled = () => false } = {}
 ) => {
   const decoder = new TextDecoder('utf-8')
   const parser = createChatSseParser()
@@ -313,6 +351,8 @@ export const consumeChatSseReader = async (
       applyChatSseEvent(state, event)
       if (event.type === 'chunk') await onContent(state.content)
       if (event.type === 'reasoning') await onReasoning(state.reasoning)
+      if (event.type === 'tool_call') await onToolCall(event.data)
+      if (event.type === 'tool_result') await onToolResult(event.data)
     }
   }
 

@@ -11,7 +11,7 @@ public interface ChatPersistenceService {
 
     void ensureSession(String bizType, String roleCode, String sessionNo, String title);
 
-    void appendUserMessage(String bizType, String roleCode, String sessionNo, String content);
+    void appendUserMessage(String bizType, String roleCode, String sessionNo, String content, String messageNo);
 
     void appendAssistantMessage(String bizType, String roleCode, String sessionNo, String content, String status, String chatModel);
 
@@ -31,5 +31,7 @@ public interface ChatPersistenceService {
 
     void deleteLastRound(String sessionNo);
 
-    void validateRetry(String sessionNo, String messageId, String prompt);
+    void validateRetry(String sessionNo, String messageNo);
+
+    void retryLastRound(String bizType, String roleCode, String sessionNo, String messageNo, String content);
 }

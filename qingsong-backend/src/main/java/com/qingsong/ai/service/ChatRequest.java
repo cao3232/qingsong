@@ -133,7 +133,10 @@ public class ChatRequest {
     }
 
     /**
-     * 流式聊天默认最大输出 token，避免工具调用参数 JSON 在生成中被截断
+     * 流式聊天默认最大输出 token。
+     *
+     * <p>⚠️ 特殊用法：设得足够大是为了避免<b>工具调用参数 JSON 在生成中被截断</b>
+     * （模型需要先输出完整的工具参数，再进入工具循环）。</p>
      */
     private static final int DEFAULT_MAX_TOKENS = 16384;
 

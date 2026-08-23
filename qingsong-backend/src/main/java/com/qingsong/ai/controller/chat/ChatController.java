@@ -13,7 +13,6 @@ import com.qingsong.ai.service.ChatStreamPart;
 import com.qingsong.ai.service.ChatService;
 import com.qingsong.ai.service.ExportMessageService;
 import com.qingsong.ai.service.RoleUsageService;
-import com.qingsong.ai.service.chat.ChatCacheService;
 import com.qingsong.ai.service.chat.ChatPersistenceService;
 import com.qingsong.ai.service.factorys.ChatClientFactory;
 import com.qingsong.ai.service.rag.RagChatService;
@@ -79,7 +78,6 @@ public class ChatController {
     private final RagChatService ragChatService;
     private final AsyncMcpToolCallbackProvider mcpToolCallbackProvider;
     private final ChatClientFactory chatClientFactory;
-    private final ChatCacheService chatCacheService;
     private final ChatPersistenceService chatPersistenceService;
     private final RoleUsageService roleUsageService;
     private final ChatSseEventMapper chatSseEventMapper;
@@ -120,11 +118,21 @@ public class ChatController {
             @RequestParam(value = "temperature", required = false) Double temperature,
             @RequestParam(value = "toolGroupKeys", required = false) List<String> toolGroupKeys,
             @RequestParam(value = "retry", required = false, defaultValue = "false") Boolean retry,
-            @RequestParam(value = "messageId", required = false) String messageId,
+            @RequestParam(value = "messageNo", required = false) String messageNo,
             @RequestParam(value = "files", required = false) List<MultipartFile> files,
             HttpServletResponse response) {
 
-        String effectiveChatId = StringUtils.hasText(chatId) ? chatId : generateSessionId();
+        String effectiveChatId;
+        if (StringUtils.hasText(chatId)) {
+            effectiveChatId = chatId;
+        } else if (Boolean.TRUE.equals(retry)) {
+            // 会话由 /chat/pre 预建，前端总能带上真实 sessionNo；重试缺失会话 id 属于异常请求，
+            // 不再凭空生成新 id 去校验（否则必然"会话不存在"）
+            throw new BusinessException("缺少会话ID，无法重试");
+        } else {
+            // 兼容旧客户端：无 chatId 的新会话仍由后端兜底生成
+            effectiveChatId = generateSessionId();
+        }
         RLock lock = redissonClient.getLock(String.format(CHAT_LOCK_KEY, effectiveChatId));
         long lockOwnerThreadId = Thread.currentThread().getId();
         ChatLockHandle lockHandle = null;
@@ -140,13 +148,12 @@ public class ChatController {
 
             response.setHeader(SESSION_ID_HEADER, effectiveChatId);
             response.setHeader("Access-Control-Expose-Headers", SESSION_ID_HEADER);
-            // retry: 校验最后一条消息后，清理最后一轮并重新插入用户消息
+            // retry: 校验通过后，清理最后一轮并重新插入用户消息（单事务原子完成）
             if (retry) {
-                chatPersistenceService.validateRetry(effectiveChatId, messageId, prompt);
-                chatCacheService.deleteLastRound(effectiveChatId);
-                chatPersistenceService.deleteLastRound(effectiveChatId);
+                chatPersistenceService.retryLastRound("chat", roleName, effectiveChatId, messageNo, prompt);
+            } else {
+                chatPersistenceService.appendUserMessage("chat", roleName, effectiveChatId, prompt, messageNo);
             }
-            chatPersistenceService.appendUserMessage("chat", roleName, effectiveChatId, prompt);
             // 从工厂中进行加载ChatClient
             ChatClient userClient = chatClientFactory.getDefaultChatClient();
 
@@ -195,6 +202,40 @@ public class ChatController {
             }
             throw e;
         }
+    }
+
+    /**
+     * 预分配会话与用户消息号：前端在发送（或重试）前调用，拿到会话身份与消息号后随主聊天请求带回。
+     *
+     * <ul>
+     *   <li>带 {@code sessionNo}（既有会话）：原样回传，仅签发新的 messageNo，不写库，保持无状态；</li>
+     *   <li>不带 {@code sessionNo}（新会话）：预建会话行并返回真实 sessionNo 与首个 messageNo，
+     *       前端第一条消息起就持有稳定的会话身份，首条发送失败后重试不再出现"会话不存在"。</li>
+     * </ul>
+     *
+     * @param role 角色 code，新会话建行时必填，与 {@code /ai/chat} 的 role 保持一致
+     * @param bizType 业务类型，默认 chat
+     * @param sessionNo 既有会话号；缺失视为新会话
+     */
+    @PostMapping("/chat/pre")
+    public Result<Map<String, String>> preChat(
+            @RequestParam(value = "role", required = false) String role,
+            @RequestParam(value = "bizType", required = false) String bizType,
+            @RequestParam(value = "sessionNo", required = false) String sessionNo) {
+        Map<String, String> data = new HashMap<>();
+        String effectiveSessionNo;
+        if (StringUtils.hasText(sessionNo)) {
+            effectiveSessionNo = sessionNo;
+        } else {
+            if (!StringUtils.hasText(role)) {
+                throw new BusinessException("缺少角色 role，无法创建会话");
+            }
+            effectiveSessionNo = generateSessionId();
+            chatPersistenceService.ensureSession(StringUtils.hasText(bizType) ? bizType : "chat", role, effectiveSessionNo, null);
+        }
+        data.put("sessionNo", effectiveSessionNo);
+        data.put("messageNo", generateSessionId());
+        return Result.ok(data);
     }
 
     /**

@@ -274,6 +274,9 @@ let dragSnapshot = [];
 let clickLock = false;
 let mediaQuery = null;
 let collapseTimer = null;
+let previewShowTimer = null;
+let previewHideTimer = null;
+let pendingTipTarget = null;
 const previewTip = ref(null);
 const previewTipPos = ref({});
 
@@ -590,7 +593,20 @@ const startNewChat = (role) => {
 };
 
 const showPreviewTip = (model, key, event) => {
+  if (previewHideTimer) {
+    clearTimeout(previewHideTimer);
+    previewHideTimer = null;
+  }
   const rect = event.currentTarget.getBoundingClientRect();
+  pendingTipTarget = { model, key, rect };
+  if (previewShowTimer) return;
+  previewShowTimer = setTimeout(applyPreviewTip, 180);
+};
+const applyPreviewTip = () => {
+  previewShowTimer = null;
+  if (!pendingTipTarget) return;
+  const { model, key, rect } = pendingTipTarget;
+  pendingTipTarget = null;
   previewTip.value = { ...model, key };
   const TIP_WIDTH = 220;
   if (rect.right + TIP_WIDTH + 8 > window.innerWidth) {
@@ -603,7 +619,16 @@ const showPreviewTip = (model, key, event) => {
   }
 };
 const hidePreviewTip = () => {
-  previewTip.value = null;
+  if (previewShowTimer) {
+    clearTimeout(previewShowTimer);
+    previewShowTimer = null;
+  }
+  pendingTipTarget = null;
+  if (previewHideTimer) clearTimeout(previewHideTimer);
+  previewHideTimer = setTimeout(() => {
+    previewHideTimer = null;
+    previewTip.value = null;
+  }, 200);
 };
 
 const handleDragStart = () => {
@@ -676,6 +701,8 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   cancelAutoCollapse();
+  if (previewShowTimer) clearTimeout(previewShowTimer);
+  if (previewHideTimer) clearTimeout(previewHideTimer);
   mediaQuery?.removeEventListener("change", onMediaChange);
 });
 </script>

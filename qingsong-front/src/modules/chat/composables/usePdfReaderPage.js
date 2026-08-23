@@ -2,7 +2,14 @@ import { computed, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTtsPlayback } from './useTtsPlayback.js'
 import { splitPdfTextIntoSegments, findStartIndexFromPage } from '../utils/pdfReaderText.js'
-import { getConfiguredTtsApiKey, setConfiguredTtsApiKey } from '../services/index.js'
+import {
+  getConfiguredTtsApiKey,
+  setConfiguredTtsApiKey,
+  listRecentPdfs,
+  saveRecentPdf,
+  removeRecentPdf,
+  clearRecentPdfs
+} from '../services/index.js'
 
 export const usePdfReaderPage = () => {
   const router = useRouter()
@@ -12,6 +19,7 @@ export const usePdfReaderPage = () => {
   const scale = ref(1.1)
   const pageTexts = ref({})
   const outline = ref([])
+  const recentPdfs = ref([])
   const showOutline = ref(false)
   const isDragging = ref(false)
   const errorMessage = ref('')
@@ -72,6 +80,19 @@ export const usePdfReaderPage = () => {
     resetExtraction()
   }
 
+  // 关闭当前文件，回到阅读器首页（可看到最近阅读列表）
+  const closeFile = () => {
+    stop()
+    file.value = null
+    pageNumber.value = 1
+    pageCount.value = 0
+    pageTexts.value = {}
+    outline.value = []
+    showOutline.value = false
+    errorMessage.value = ''
+    resetExtraction()
+  }
+
   // —— 全文提取完成前，禁止用“半截快照”播放 ——
   let extractionDone = true
   const extractionWaiters = []
@@ -102,7 +123,25 @@ export const usePdfReaderPage = () => {
   const handleFileInput = event => openFile(event.target.files?.[0])
   const handleDrop = event => { isDragging.value = false; openFile(event.dataTransfer.files?.[0]) }
   const setPageText = ({ pageNumber: page, text }) => { pageTexts.value = { ...pageTexts.value, [page]: text } }
-  const setPageCount = count => { pageCount.value = count }
+  const setPageCount = count => {
+    pageCount.value = count
+    // 打开成功（pdfjs 已解析文档）即写入最近阅读，便于下次快捷打开
+    if (file.value) saveRecentPdf(file.value).then(refreshRecentList)
+  }
+  const refreshRecentList = async () => { recentPdfs.value = await listRecentPdfs() }
+  const openRecent = async id => {
+    const row = recentPdfs.value.find(item => item.id === id)
+    if (!row?.blob) return
+    openFile(new File([row.blob], row.name, { type: 'application/pdf' }))
+  }
+  const removeRecent = async id => {
+    await removeRecentPdf(id)
+    await refreshRecentList()
+  }
+  const clearRecent = async () => {
+    await clearRecentPdfs()
+    await refreshRecentList()
+  }
   const setPage = page => {
     const nextPage = Math.min(Math.max(Number(page) || 1, 1), pageCount.value || 1)
     if (nextPage === pageNumber.value) return
@@ -156,11 +195,14 @@ export const usePdfReaderPage = () => {
   const goBack = () => { stop(); router.back() }
   onUnmounted(stop)
 
+  // 进入阅读器即加载最近阅读记录
+  refreshRecentList()
+
   return {
-    apiKey, errorMessage, file, fileInputRef, fileName, flatOutline, handleDrop, handleFileInput,
-    handleLoadError, isDragging, jumpToOutline, cloneSample, isPlaying, onTextDone, pageNumber, play,
-    playbackRate, progressText, saveApiKey, selectFile, setPage, setPageCount, setPageText, setPlaybackRate,
-    setScale, setVoice, setVoiceDesign, setOutline, showOutline, scale, stop, toggleOutline,
-    TTS_PLAYBACK_RATES, TTS_VOICES, voice, voiceDesign, goBack
+    apiKey, clearRecent, closeFile, errorMessage, file, fileInputRef, fileName, flatOutline, handleDrop,
+    handleFileInput, handleLoadError, isDragging, jumpToOutline, cloneSample, isPlaying, onTextDone, openRecent,
+    pageNumber, play, playbackRate, progressText, recentPdfs, removeRecent, saveApiKey, selectFile, setPage,
+    setPageCount, setPageText, setPlaybackRate, setScale, setVoice, setVoiceDesign, setOutline, showOutline,
+    scale, stop, toggleOutline, TTS_PLAYBACK_RATES, TTS_VOICES, voice, voiceDesign, goBack
   }
 }
