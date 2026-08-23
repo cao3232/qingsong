@@ -2,7 +2,7 @@
 
 # 🖥 qingsong-chat-front
 
-**AI 对话应用前端**
+**AI 对话应用前端 —— 复古 OS 风格聊天界面 · SSE 流式渲染 · TTS 朗读 · PDF 阅读 · RAG 知识库**
 
 ![version](https://img.shields.io/badge/version-1.0.0-10b981)
 ![vue](https://img.shields.io/badge/Vue-3.4-42b883)

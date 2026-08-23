@@ -2,7 +2,7 @@
 
 # ⚙️ qingsong-chat-backend
 
-**AI 对话应用后端**
+**AI 对话应用后端 —— SSE 流式对话 · RAG 知识库 · AI 工具调用 · 会话与消息持久化 · 模型管理**
 
 ![version](https://img.shields.io/badge/version-1.0.0-10b981)
 ![spring](https://img.shields.io/badge/Spring%20Boot-3.5-6db33f)

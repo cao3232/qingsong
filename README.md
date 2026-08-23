@@ -2,7 +2,7 @@
 
 # 🍃 qingsong-chat
 
-**一个开源的 AI 对话应用 · 前后端一体 · 即开即用**
+**开箱即用的开源 AI 对话平台 —— 对话 / 知识 / 工具 / 复盘一体化,前后端完整,一条命令启动全栈**
 
 ![version](https://img.shields.io/badge/version-1.0.0-10b981)
 ![license](https://img.shields.io/badge/license-MIT-blue)
@@ -11,7 +11,7 @@
 ![build](https://img.shields.io/badge/build-passing-brightgreen)
 [![LINUX DO](https://img.shields.io/badge/社区-LINUX%20DO-0ea5e9)](https://linux.do)
 
-多角色对话 · SSE 流式输出 · 会话历史 · TTS 语音 · PDF 阅读 · RAG 知识库 · AI 工具调用 · 模型管理
+多角色对话 · SSE 流式输出 · TTS 语音 · PDF 阅读 · RAG 知识库 · AI 工具调用 · 会话复盘 · 模型管理
 
 **🤝 本项目已链接并认可 LINUX DO 社区**
 
@@ -25,22 +25,30 @@
 
 | 能力 | 说明 |
 |------|------|
-| 💬 **多角色对话** | 内置多套角色人设,支持收藏、排序、自定义管理 |
-| ⚡ **SSE 流式输出** | 打字机式实时返回,支持中断/取消、Token 用量统计 |
-| 🗂 **会话历史** | 会话列表、改名、删除、消息搜索跳转、导出与邮件发送 |
+| 💬 **多角色对话** | 内置多套角色人设,支持自定义、收藏、拖拽排序、搜索与常用语快捷插入 |
+| ⚡ **SSE 流式输出** | 打字机式实时返回,支持中断/取消、Token 用量统计、断网自动重试(会话预建 + 消息幂等去重,不丢消息) |
+| 🗂 **会话历史** | 会话列表/改名/删除、消息全文搜索与定位跳转、导出 HTML 邮件 |
 | 🔊 **语音合成 TTS** | 流式朗读对话内容,多音色可选 |
-| 📄 **PDF 阅读器** | 本地 PDF 阅读 + TTS 朗读,无需上传 |
-| 🧠 **RAG 知识库增强** | 对话时可挂载知识库做检索增强回答 |
-| 🛠 **AI 工具调用** | 对话中可调用注册工具,支持快捷短语 |
+| 📄 **PDF 阅读器** | 本地 PDF 阅读 + TTS 朗读,无需上传,支持大纲跳转 |
+| 🧠 **RAG 知识库增强** | 对话挂载知识库做检索增强回答,文档上传/解析,pgvector 向量检索 |
+| 🛠 **AI 工具调用** | 注册式工具体系,工具执行过程以 SSE 事件实时可视化(前端渲染步骤卡片) |
 | 🎛 **模型管理** | 多来源(OpenAI/DeepSeek/Qwen/任意 OpenAI 兼容中转)+ 多模型配置与一键切换 |
-| 📊 **对话复盘** | 按日聚合角色/会话/消息统计,生成解读报告 |
+| 📊 **对话复盘** | 按日聚合角色/会话/消息统计,生成 AI 解读报告 |
+
+## 🚀 项目亮点
+
+- **全链路开箱即用**:Docker Compose 一键编排 MySQL / Redis / MinIO / pgvector + 前后端,种子数据直接起跑
+- **工具调用过程可观测**:工具执行以 SSE 事件实时推送,前端渲染为步骤卡片,对话过程一目了然
+- **断网不丢消息**:发送前经 `/chat/pre` 预建会话并签发消息号,网络失败重试幂等去重、不重复落库
+- **复古桌面风 UI**:90 年代 OS 风格聊天界面,内置多套皮肤一键切换
+- **阅读与对话一体**:PDF 阅读器 + TTS 朗读无缝衔接,可读可听
 
 ## 🛠 技术栈
 
 | 端 | 技术 |
 |----|------|
-| 🖥 前端 | Vue 3 · TypeScript · Vite · Naive UI · Pinia · Vue Router · pdfjs-dist |
-| ⚙️ 后端 | Spring Boot 3.5 · Java 17 · Maven · MyBatis-Plus · Sa-Token · Spring AI · Reactor |
+| 🖥 前端 | Vue 3 · TypeScript · Vite · Naive UI · Pinia · Vue Router · vuedraggable · pdfjs-dist |
+| ⚙️ 后端 | Spring Boot 3.5 · Java 17 · Maven · MyBatis-Plus · Sa-Token · Spring AI · Reactor · Redisson |
 | 🗄 存储 | MySQL(主库) · Redis(缓存) · PostgreSQL + pgvector(RAG 向量库) · MinIO(对象存储) |
 
 ## 📁 目录结构
