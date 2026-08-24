@@ -116,6 +116,25 @@
             </svg>
             用户配置
           </div>
+          <div
+            class="menu-item"
+            :class="{ active: isActive('dict') }"
+            @click="handleTabClick('dict')"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M4 6h16" />
+              <path d="M4 12h16" />
+              <path d="M4 18h10" />
+            </svg>
+            字典管理
+          </div>
         </div>
       </div>
 

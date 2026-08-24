@@ -12,6 +12,7 @@
 | `model_config` | 通用配置(无隐私) | schema 已提交;含种子 |
 | `user_config` | 通用配置(无隐私) | schema 已提交;含默认账号(admin/admin123) |
 | `knowledge_base` | 通用配置(无隐私) | schema 已提交 |
+| `sys_dict` | 通用配置(无隐私) | schema 已提交(业务字典,音色设计预设等) |
 | `ai_chat_session` | 用户会话 | **仅 schema,禁止导数据** |
 | `ai_chat_message` | 用户消息 | **仅 schema,禁止导数据** |
 | `chat_review` | 对话复盘(含真实对话聚合) | **仅 schema,禁止导数据** |
@@ -20,6 +21,7 @@
 
 - `chat-schema.sql` — 会话/消息/复盘表结构(来源 `qingsong-backend/src/main/resources/db/chat-schema.sql`)
 - `config-schema.sql` — 角色/短语/模型来源/模型配置 + `user_config`(登录) + `knowledge_base`(RAG)表结构
+- `sys-dict-schema.sql` — `sys_dict` 业务字典表结构(来源 `qingsong-backend/src/main/resources/db/sys-dict-schema.sql`)
 - `seed-data.sql` — **初始化种子数据(开箱即用)**:4 个角色 + 快捷短语 + 模型来源/配置 + 默认账号 `admin / admin123`
 - `backup-data.ps1` / `backup-data.sh` — 导出**通用配置表数据**的脚本(产物 `data-backup.sql` 已被 .gitignore 忽略,不会提交)
 
@@ -30,9 +32,10 @@
 mysql < sql/chat-schema.sql
 mysql < sql/config-schema.sql
 mysql < sql/seed-data.sql
+mysql < sql/sys-dict-schema.sql
 
 # 方式二:Docker Compose
-# 已自动挂载到 /docker-entrypoint-initdb.d/,首次启动自动执行 01→02→03
+# 已自动挂载到 /docker-entrypoint-initdb.d/,首次启动自动执行 01→02→03→04
 ```
 
 > 种子数据后请到「系统配置 → 模型来源」填入你的 API Key,并尽快修改默认账号密码。

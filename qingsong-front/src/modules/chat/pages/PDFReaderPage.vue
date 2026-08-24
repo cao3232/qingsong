@@ -22,6 +22,11 @@
       </label>
       <label class="design-field">
         <span>音色设计</span>
+        <select :value="voiceDesign.trim()" @change="setVoiceDesign($event.target.value)" title="选择音色设计预设">
+          <option value="">自定义...</option>
+          <option v-for="preset in voiceDesignOptions" :key="preset.value" :value="preset.value">{{ preset.label }}
+          </option>
+        </select>
         <input :value="voiceDesign" placeholder="例如：温柔、舒缓、适合长时间阅读" @change="setVoiceDesign($event.target.value)" />
       </label>
       <label class="api-key-field" :title="'API Key 按浏览器来源分别保存；局域网/其他浏览器访问需各自配置一次'">

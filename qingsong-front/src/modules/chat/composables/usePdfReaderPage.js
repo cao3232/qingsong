@@ -37,7 +37,8 @@ export const usePdfReaderPage = () => {
     TTS_PLAYBACK_RATES,
     TTS_VOICES,
     voice,
-    voiceDesign
+    voiceDesign,
+    voiceDesignOptions
   } = useTtsPlayback()
 
   const fileName = computed(() => file.value?.name || '')
@@ -203,6 +204,6 @@ export const usePdfReaderPage = () => {
     handleFileInput, handleLoadError, isDragging, jumpToOutline, cloneSample, isPlaying, onTextDone, openRecent,
     pageNumber, play, playbackRate, progressText, recentPdfs, removeRecent, saveApiKey, selectFile, setPage,
     setPageCount, setPageText, setPlaybackRate, setScale, setVoice, setVoiceDesign, setOutline, showOutline,
-    scale, stop, toggleOutline, TTS_PLAYBACK_RATES, TTS_VOICES, voice, voiceDesign, goBack
+    scale, stop, toggleOutline, TTS_PLAYBACK_RATES, TTS_VOICES, voice, voiceDesign, voiceDesignOptions, goBack
   }
 }

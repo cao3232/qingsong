@@ -1,5 +1,2 @@
 export { default as AIChatPage } from './AIChatPage.vue'
-export { default as ChatPDFPage } from './ChatPDFPage.vue'
-export { default as CustomerServicePage } from './CustomerServicePage.vue'
-export { default as GameChatPage } from './GameChatPage.vue'
 export { default as PDFReaderPage } from './PDFReaderPage.vue'

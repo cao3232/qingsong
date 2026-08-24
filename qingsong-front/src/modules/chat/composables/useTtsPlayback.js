@@ -5,7 +5,7 @@
 //  - 音色克隆（mimo-v2.5-tts-voiceclone）：配置 mp3/wav 样本 base64 后，朗读/导出用克隆音色
 //  - 语音导出（下载 mp3/wav）：短文本非流式 mp3，长文本流式收集 PCM 拼 WAV
 //  - 用量统计：捕获流式末 chunk 与非流式响应里的 usage，累计展示
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import {
   DEFAULT_TTS_VOICE,
   TTS_MODELS,
@@ -16,6 +16,7 @@ import {
   setClonedVoiceSample,
   ttsAPI
 } from '../services/index.js'
+import { useDictStore } from '@/stores/dictStore'
 import { extractPlainText, splitTextIntoSegments } from '../utils/index.js'
 
 const TTS_VOICE_STORAGE_KEY = 'mimo-tts-voice'
@@ -34,8 +35,8 @@ export const TTS_PLAYBACK_RATES = [
 ]
 
 // MiMo TTS 单次合成文本长度有限，超过该长度音频会被截断导致少读/跳段，需分段合成。
-// 与 PDF 阅读器一致控制在 300 字内，降低接口超长截断风险。
-const TTS_MAX_SEGMENT_CHARS = 300
+// 300 字仍偶发截断，进一步收紧到 200 字，降低接口超长截断风险。
+const TTS_MAX_SEGMENT_CHARS = 200
 
 const readStorage = key => {
   if (typeof window === 'undefined') return null
@@ -268,6 +269,41 @@ const streamSegments = async (segments, token, { mode = 'play', onSegmentStart, 
   let scheduledCount = 0
   lastScheduledSegmentIndex = -1
 
+  const handleLine = (line, { segment, segmentIndex } = {}) => {
+    if (token !== playbackToken) return
+    const trimmed = line.trim()
+    if (!trimmed.startsWith('data:')) return
+
+    const data = trimmed.slice(5).trim()
+    if (data === '[DONE]') return
+
+    let payload
+    try {
+      payload = JSON.parse(data)
+    } catch {
+      return
+    }
+
+    const audio = payload?.choices?.[0]?.delta?.audio
+    if (audio?.data) {
+      if (mode === 'collect') {
+        const int16 = decodePcmChunkToInt16(audio.data)
+        collected.push(int16)
+        totalSamples += int16.length
+      } else {
+        scheduleChunk(decodePcmChunk(audio.data), { onSegmentStart, segment, segmentIndex, token })
+        scheduledCount += 1
+      }
+      if (audio.id) {
+        lastAudioId.value = audio.id
+      }
+    }
+    // 流式末尾 chunk 携带 usage
+    if (payload?.usage) {
+      recordUsage(payload.usage)
+    }
+  }
+
   for (const [segmentIndex, segment] of segments.entries()) {
     if (token !== playbackToken) break
 
@@ -292,39 +328,14 @@ const streamSegments = async (segments, token, { mode = 'play', onSegmentStart, 
       buffer = lines.pop() || ''
 
       for (const line of lines) {
-        if (token !== playbackToken) break
-        const trimmed = line.trim()
-        if (!trimmed.startsWith('data:')) continue
-
-        const data = trimmed.slice(5).trim()
-        if (data === '[DONE]') continue
-
-        let payload
-        try {
-          payload = JSON.parse(data)
-        } catch {
-          continue
-        }
-
-        const audio = payload?.choices?.[0]?.delta?.audio
-        if (audio?.data) {
-          if (mode === 'collect') {
-            const int16 = decodePcmChunkToInt16(audio.data)
-            collected.push(int16)
-            totalSamples += int16.length
-          } else {
-            scheduleChunk(decodePcmChunk(audio.data), { onSegmentStart, segment, segmentIndex, token })
-            scheduledCount += 1
-          }
-          if (audio.id) {
-            lastAudioId.value = audio.id
-          }
-        }
-        // 流式末尾 chunk 携带 usage
-        if (payload?.usage) {
-          recordUsage(payload.usage)
-        }
+        handleLine(line, { segment, segmentIndex })
       }
+    }
+
+    // 流结束时刷新遗留在 buffer 中的末行：部分实现最后一条 SSE 事件不带换行，
+    // 不处理会丢掉本段最后一帧音频，表现为段尾少读/跳字（与 chatSse.finish 对齐）
+    if (buffer.trim()) {
+      handleLine(buffer, { segment, segmentIndex })
     }
   }
 
@@ -540,9 +551,18 @@ const setAutoPlay = value => {
   writeStorage(TTS_AUTOPLAY_STORAGE_KEY, autoPlay.value ? '1' : '0')
 }
 
-export const useTtsPlayback = () => ({
-  TTS_PLAYBACK_RATES,
-  TTS_VOICES,
+export const useTtsPlayback = () => {
+  const dictStore = useDictStore()
+
+  // 音色设计预设选项：来自字典（dict_code=音色），value=描述文案(item_key)，label=展示名(item_label)
+  const voiceDesignOptions = computed(() =>
+    dictStore.getItems('音色').map(item => ({ value: item.key, label: item.label }))
+  )
+
+  return {
+    TTS_PLAYBACK_RATES,
+    TTS_VOICES,
+    voiceDesignOptions,
   autoPlay,
   clearClone,
   cloneSample,
@@ -567,4 +587,5 @@ export const useTtsPlayback = () => ({
   usage,
   voice,
   voiceDesign
-})
+  }
+}

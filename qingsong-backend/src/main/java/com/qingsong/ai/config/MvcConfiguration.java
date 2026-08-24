@@ -53,6 +53,7 @@ public class MvcConfiguration implements WebMvcConfigurer {
                                     "/user-config/login",
                                     "/user-config/register",
                                     "/user-config/session",
+                                    "/api/dict/all",
                                     "/actuator/**",
                                     "/error",
                                     "/upload/**",

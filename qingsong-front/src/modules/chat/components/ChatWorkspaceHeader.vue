@@ -199,6 +199,13 @@ ix<template>
               <div class="overflow-menu-item static design-row">
                 <span class="overflow-menu-label">音色设计</span>
                 <div class="design-input-wrap">
+                  <select class="overflow-select" :value="voiceDesignInput.trim()" title="选择音色设计预设"
+                    @change="applyDesignPreset">
+                    <option value="">自定义...</option>
+                    <option v-for="preset in voiceDesignOptions" :key="preset.value" :value="preset.value">
+                      {{ preset.label }}
+                    </option>
+                  </select>
                   <input v-model="voiceDesignInput" class="overflow-text-input" type="text"
                     placeholder="描述音色，如：清脆活泼、语速偏快" title="输入想要的音色描述（使用 voicedesign 模型）" @change="saveVoiceDesign" />
                   <button v-if="voiceDesignInput" class="clone-mini-btn" type="button" title="清除音色设计"
@@ -534,6 +541,7 @@ const handleTemperatureChange = (event) => {
 const ttsPlayback = useTtsPlayback()
 const TTS_VOICES = ttsPlayback.TTS_VOICES
 const TTS_PLAYBACK_RATES = ttsPlayback.TTS_PLAYBACK_RATES
+const voiceDesignOptions = ttsPlayback.voiceDesignOptions
 const voice = ttsPlayback.voice
 const autoPlay = ttsPlayback.autoPlay
 const cloneSample = ttsPlayback.cloneSample
@@ -569,6 +577,10 @@ const clearVoiceDesign = () => {
   voiceDesignInput.value = ''
   ttsPlayback.setVoiceDesign('')
   headerMessage.success("已清除音色设计，恢复默认")
+}
+const applyDesignPreset = (event) => {
+  voiceDesignInput.value = event.target.value
+  saveVoiceDesign()
 }
 const toggleOptimizePreview = () => {
   const next = !ttsPlayback.optimizePreview.value

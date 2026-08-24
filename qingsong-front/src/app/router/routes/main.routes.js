@@ -67,6 +67,11 @@ export const mainRoutes = [
         path: 'user',
         name: 'ConfigUser',
         component: () => import('../../../modules/tools/pages/UserConfigPage.vue')
+      },
+      {
+        path: 'dict',
+        name: 'ConfigDict',
+        component: () => import('../../../modules/tools/pages/DictManagePage.vue')
       }
     ]
   }
