@@ -2,20 +2,25 @@ package com.qingsong.ai.controller.chat;
 
 import cn.hutool.core.date.DateUtil;
 import com.qingsong.ai.config.MyRolesConfig;
+import com.qingsong.ai.context.ChatContextSizeHolder;
+import com.qingsong.ai.context.UserContext;
 import com.qingsong.ai.entity.dto.flowChatDTO;
 import com.qingsong.ai.entity.exception.BusinessException;
 import com.qingsong.ai.entity.po.role.Role;
+import com.qingsong.ai.entity.po.user.UserConfig;
 import com.qingsong.ai.entity.vo.Result;
 import com.qingsong.ai.repository.ChatHistoryRepository;
 import com.qingsong.ai.service.ChatRequest;
 import com.qingsong.ai.service.ChatLockHandle;
-import com.qingsong.ai.service.ChatStreamPart;
 import com.qingsong.ai.service.ChatService;
+import com.qingsong.ai.service.ChatStreamPart;
 import com.qingsong.ai.service.ExportMessageService;
 import com.qingsong.ai.service.RoleUsageService;
+import com.qingsong.ai.service.UserConfigService;
 import com.qingsong.ai.service.chat.ChatPersistenceService;
 import com.qingsong.ai.service.factorys.ChatClientFactory;
 import com.qingsong.ai.service.rag.RagChatService;
+import com.qingsong.ai.utils.UserConfigUtils;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -81,6 +86,8 @@ public class ChatController {
     private final ChatPersistenceService chatPersistenceService;
     private final RoleUsageService roleUsageService;
     private final ChatSseEventMapper chatSseEventMapper;
+    private final ChatContextSizeHolder chatContextSizeHolder;
+    private final UserConfigService userConfigService;
 
 
     // private static final String systemRule1 = """
@@ -137,6 +144,9 @@ public class ChatController {
         long lockOwnerThreadId = Thread.currentThread().getId();
         ChatLockHandle lockHandle = null;
         try {
+            // 在请求线程里读取用户配置，放入 ChatContextSizeHolder，供 Reactor 线程使用
+            loadContextSizeForSession(effectiveChatId);
+
             if (!lock.tryLock(0, CHAT_LOCK_LEASE_SECONDS, TimeUnit.SECONDS)) {
                 log.debug("会话锁获取失败(已被占用), chatId={}", effectiveChatId);
             return chatSseEventMapper.mapParts(
@@ -340,6 +350,23 @@ public class ChatController {
 
     private String generateSessionId() {
         return UUID.randomUUID().toString().replace("-", "");
+    }
+
+    /**
+     * 把当前用户的上下文窗口大小绑定到本次会话，供 Reactor 线程读取。
+     */
+    private void loadContextSizeForSession(String sessionNo) {
+        try {
+            UserConfig config = UserConfigUtils.getCurrentUserConfig();
+            if (config != null && config.getContextSize() != null) {
+                chatContextSizeHolder.setContextSize(sessionNo, config.getContextSize());
+                log.info("绑定会话上下文窗口大小: sessionNo={}, contextSize={}", sessionNo, config.getContextSize());
+            } else {
+                log.info("当前用户未设置上下文窗口大小，使用默认: sessionNo={}", sessionNo);
+            }
+        } catch (Exception e) {
+            log.warn("加载用户上下文窗口大小失败: sessionNo={}", sessionNo, e);
+        }
     }
 
     private void writePlainTextResponse(HttpServletResponse response, int status, String message) {

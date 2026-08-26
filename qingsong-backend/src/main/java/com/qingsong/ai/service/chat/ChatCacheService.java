@@ -24,7 +24,9 @@ public interface ChatCacheService {
 
     void cacheContextMessages(String sessionNo, List<Message> messages);
 
-    void appendContextMessages(String sessionNo, List<Message> messages, int maxSize);
+    Optional<List<Message>> getLocalContextMessages(String sessionNo);
+
+    void cacheLocalContextMessages(String sessionNo, List<Message> messages);
 
     void evictSessionCaches(String sessionNo);
 

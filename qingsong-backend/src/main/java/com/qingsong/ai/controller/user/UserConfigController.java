@@ -8,6 +8,7 @@ import com.qingsong.ai.entity.vo.user.UserInfoLoginDTO;
 import com.qingsong.ai.entity.vo.user.UserInfoRegistDTO;
 import com.qingsong.ai.service.UserConfigService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.validation.Valid;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -29,6 +31,7 @@ import java.util.Map;
  * @author : caojiangjiang
  * @data : 2026/04/26
  */
+@Slf4j
 @RestController
 @RequestMapping("/user-config")
 @RequiredArgsConstructor
@@ -175,6 +178,71 @@ public class UserConfigController {
             return success ? Result.ok() : Result.fail("批量删除失败");
         } catch (Exception e) {
             return Result.fail("批量删除失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取当前登录用户的聊天上下文窗口大小
+     *
+     * @return 当前上下文窗口大小（size）；未设置时返回默认值 30
+     */
+    @GetMapping("/me/context-size")
+    public Result<Map<String, Integer>> getCurrentContextSize() {
+        Long userId = resolveLoginUserId();
+        log.info("获取上下文窗口大小: userId={}", userId);
+        if (userId == null) {
+            return Result.fail("用户未登录");
+        }
+
+        UserConfig userConfig = userConfigService.getUserConfigById(userId);
+        // 未设置时返回默认值 30；显式设置 0 表示无上下文
+        Integer contextSize = userConfig != null && userConfig.getContextSize() != null
+                ? userConfig.getContextSize()
+                : 30;
+        log.info("返回上下文窗口大小: userId={}, contextSize={}", userId, contextSize);
+
+        Map<String, Integer> data = new HashMap<>();
+        data.put("size", contextSize);
+        return Result.ok(data);
+    }
+
+    /**
+     * 更新当前登录用户的聊天上下文窗口大小
+     *
+     * @param contextSize 上下文窗口大小（0 表示使用默认，范围 1-100）
+     * @return 操作结果
+     */
+    @PutMapping("/me/context-size")
+    public Result updateCurrentContextSize(@RequestBody Integer contextSize) {
+        Long userId = resolveLoginUserId();
+        if (userId == null) {
+            return Result.fail("用户未登录");
+        }
+
+        if (contextSize == null || contextSize < 0 || contextSize > 100) {
+            return Result.fail("上下文窗口大小必须在 0-100 之间");
+        }
+
+        try {
+            boolean success = userConfigService.updateContextSize(userId, contextSize);
+            return success ? Result.ok() : Result.fail("更新失败");
+        } catch (Exception e) {
+            return Result.fail("更新失败: " + e.getMessage());
+        }
+    }
+
+    private Long resolveLoginUserId() {
+        Object loginId = StpUtil.getLoginIdDefaultNull();
+        if (loginId == null) {
+            return null;
+        }
+        if (loginId instanceof Number number) {
+            return number.longValue();
+        }
+        try {
+            return Long.valueOf(loginId.toString());
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 

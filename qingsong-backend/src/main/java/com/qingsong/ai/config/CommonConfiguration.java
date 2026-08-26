@@ -27,6 +27,8 @@ public class CommonConfiguration {
     public MyMessageWindowChatMemory chatMemory(RedisBackedChatMemoryRepository redisBackedChatMemoryRepository) {
         return MyMessageWindowChatMemory.builder()
                 .chatMemoryRepository(redisBackedChatMemoryRepository)
+                // 上限覆盖用户可配置的最大窗口（100），避免消息被二次截断
+                .maxMessages(100)
                 .build();
     }
 

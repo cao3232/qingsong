@@ -13,7 +13,7 @@ public interface ChatPersistenceService {
 
     void appendUserMessage(String bizType, String roleCode, String sessionNo, String content, String messageNo);
 
-    void appendAssistantMessage(String bizType, String roleCode, String sessionNo, String content, String status, String chatModel);
+    void appendAssistantMessage(String bizType, String roleCode, String sessionNo, String content, String signalType, String chatModel);
 
     List<ChatHistory> getChatHistories(String bizType, String roleCode);
 
@@ -27,7 +27,7 @@ public interface ChatPersistenceService {
 
     void updateSessionTitle(String bizType, String roleCode, String sessionNo, String title);
 
-    Map<String, String> selectChatModelByIds(List<String> assistantIds);
+    Map<String, String> selectChatModelByIds(List<String> messageNos);
 
     void deleteLastRound(String sessionNo);
 

@@ -77,5 +77,14 @@ public interface UserConfigService {
      */
     boolean updateLastRoleName(Long userId, String lastRoleName);
 
+    /**
+     * 更新用户聊天上下文窗口大小
+     *
+     * @param userId      用户ID
+     * @param contextSize 上下文窗口大小（0 表示使用默认）
+     * @return 是否更新成功
+     */
+    boolean updateContextSize(Long userId, Integer contextSize);
+
     UserConfig login(String account, String password);
 }

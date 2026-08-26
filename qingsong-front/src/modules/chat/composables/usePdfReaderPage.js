@@ -25,15 +25,27 @@ export const usePdfReaderPage = () => {
   const errorMessage = ref('')
   const fileInputRef = ref(null)
   const apiKey = ref(getConfiguredTtsApiKey())
+  const currentSegmentText = ref('')
+  // 分句方式：'auto'（短行按行、长行按标点）| 'line'（按行）| 'punct'（按标点）
+  const SPLIT_MODE_STORAGE_KEY = 'mimo-pdf-split-mode'
+  const readSplitMode = () => {
+    if (typeof window === 'undefined') return 'auto'
+    const value = window.localStorage.getItem(SPLIT_MODE_STORAGE_KEY)
+    return ['line', 'punct'].includes(value) ? value : 'auto'
+  }
+  const splitMode = ref(readSplitMode())
   const {
     cloneSample,
+    isPaused,
     isPlaying,
+    pause,
     playbackRate,
+    playSegments,
+    resume,
     setPlaybackRate,
     setVoice,
     setVoiceDesign,
-    stop,
-    playSegments,
+    stop: stopAudio,
     TTS_PLAYBACK_RATES,
     TTS_VOICES,
     voice,
@@ -41,12 +53,27 @@ export const usePdfReaderPage = () => {
     voiceDesignOptions
   } = useTtsPlayback()
 
+  // 停止朗读时同时清空"当前朗读文本"展示
+  const stop = () => {
+    stopAudio()
+    currentSegmentText.value = ''
+  }
+
+  // 切换分句方式：立即停止当前播放，避免用旧分段继续播
+  const setSplitMode = value => {
+    splitMode.value = ['line', 'punct'].includes(value) ? value : 'auto'
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(SPLIT_MODE_STORAGE_KEY, splitMode.value)
+    }
+    stop()
+  }
+
   const fileName = computed(() => file.value?.name || '')
   const currentText = computed(() => pageTexts.value[pageNumber.value] || '')
-  // 单次 TTS 请求控制在 300 字内，避免接口超长截断导致少字/跳句
+  // 单次 TTS 请求控制在 150 字内，避免接口超长截断导致段尾少读/跳句（比聊天朗读更保守）
   const allSegments = computed(() => Object.entries(pageTexts.value)
     .sort(([a], [b]) => Number(a) - Number(b))
-    .flatMap(([page, text]) => splitPdfTextIntoSegments(text, 300).map(content => ({ page: Number(page), content }))))
+    .flatMap(([page, text]) => splitPdfTextIntoSegments(text, 150, splitMode.value).map(content => ({ page: Number(page), content }))))
   const progressText = computed(() => {
     if (!allSegments.value.length) return '暂无可朗读文本'
     return `${allSegments.value.length} 段文字`
@@ -170,7 +197,8 @@ export const usePdfReaderPage = () => {
       : '已清除自定义 Key，恢复使用内置 Key（内置 Key 可能失效）'
   }
 
-  const play = async () => {
+  // 朗读模式：'all' 全文连续朗读，'page' 只朗读当前页
+  const play = async (mode = 'all') => {
     errorMessage.value = '正在提取全文文本，请稍候…'
     await waitForExtraction()
     errorMessage.value = ''
@@ -178,20 +206,53 @@ export const usePdfReaderPage = () => {
       errorMessage.value = currentText.value ? '正在提取 PDF 文本，请稍后再试' : '该 PDF 没有可提取文本，暂不支持朗读'
       return
     }
-    const startAt = findStartIndexFromPage(allSegments.value, pageNumber.value)
-    await playSegments(allSegments.value.slice(startAt).map(item => item.content), {
+
+    let startAt = 0
+    let segments = []
+
+    if (mode === 'page') {
+      const page = pageNumber.value
+      const indices = []
+      const pageSegments = allSegments.value.filter((item, index) => {
+        if (Number(item.page) === Number(page)) {
+          indices.push(index)
+          return true
+        }
+        return false
+      })
+      if (!pageSegments.length) {
+        errorMessage.value = '当前页没有可朗读文本'
+        return
+      }
+      startAt = indices[0]
+      segments = pageSegments
+    } else {
+      startAt = findStartIndexFromPage(allSegments.value, pageNumber.value)
+      segments = allSegments.value.slice(startAt)
+    }
+
+    await playSegments(segments.map(item => item.content), {
       onSegmentStart: (segment, segmentIndex) => {
-        const item = allSegments.value[startAt + segmentIndex]
-        if (item) pageNumber.value = item.page
+        const item = segments[segmentIndex]
+        if (item) {
+          pageNumber.value = item.page
+          currentSegmentText.value = item.content
+        }
       },
       // 阅读器强制关闭“智能优化”，避免接口改写/压缩播报文本导致跳句子
       optimizeTextPreview: false,
+      // 段间停顿 400ms：一段（按标点分句）播完停顿再下一段，朗读节奏更清晰
+      segmentGapMs: 400,
       messageApi: {
         warning: msg => { errorMessage.value = msg },
         error: msg => { errorMessage.value = msg }
       }
     })
+    currentSegmentText.value = ''
   }
+
+  const playAll = () => play('all')
+  const playCurrentPage = () => play('page')
 
   const goBack = () => { stop(); router.back() }
   onUnmounted(stop)
@@ -200,10 +261,10 @@ export const usePdfReaderPage = () => {
   refreshRecentList()
 
   return {
-    apiKey, clearRecent, closeFile, errorMessage, file, fileInputRef, fileName, flatOutline, handleDrop,
-    handleFileInput, handleLoadError, isDragging, jumpToOutline, cloneSample, isPlaying, onTextDone, openRecent,
-    pageNumber, play, playbackRate, progressText, recentPdfs, removeRecent, saveApiKey, selectFile, setPage,
-    setPageCount, setPageText, setPlaybackRate, setScale, setVoice, setVoiceDesign, setOutline, showOutline,
-    scale, stop, toggleOutline, TTS_PLAYBACK_RATES, TTS_VOICES, voice, voiceDesign, voiceDesignOptions, goBack
+    apiKey, clearRecent, closeFile, currentSegmentText, errorMessage, file, fileInputRef, fileName, flatOutline, handleDrop,
+    handleFileInput, handleLoadError, isDragging, isPaused, jumpToOutline, cloneSample, isPlaying, onTextDone, openRecent,
+    pageNumber, pause, play, playAll, playCurrentPage, playbackRate, progressText, recentPdfs, removeRecent, resume, saveApiKey,
+    selectFile, setPage, setPageCount, setPageText, setPlaybackRate, setScale, setSplitMode, setVoice, setVoiceDesign, setOutline,
+    showOutline, scale, splitMode, stop, toggleOutline, TTS_PLAYBACK_RATES, TTS_VOICES, voice, voiceDesign, voiceDesignOptions, goBack
   }
 }

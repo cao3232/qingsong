@@ -10,7 +10,6 @@ import { registerVirtualListController } from './virtualListController.js'
 
 const TOOL_SELECTION_STORAGE_KEY = 'ai-chat-selected-tools'
 const TOOL_GROUP_STORAGE_KEY = 'ai-chat-selected-tool-group'
-const CONTEXT_SIZE_STORAGE_KEY = 'ai-chat-context-size'
 
 // 未测量消息的估算高度（首次渲染/滚到未测区时使用，实测后自动替换）
 const ESTIMATED_MESSAGE_HEIGHT = 300
@@ -226,27 +225,35 @@ export const useChatWorkspace = (props, emit, options = {}) => {
   const isExporting = ref(false)
   const isSendEmail = ref(false)
 
-  // 上下文条数：0 表示使用后端默认；本地持久化，并在请求中透传（后端当前未消费该字段）
+  // 上下文条数：0 表示无上下文；通过独立用户配置接口持久化
   const contextSize = ref(0)
-  if (typeof window !== 'undefined') {
-    const saved = Number(window.localStorage.getItem(CONTEXT_SIZE_STORAGE_KEY) || 0)
-    contextSize.value = Number.isFinite(saved) ? saved : 0
-  }
-  watch(contextSize, value => {
-    if (typeof window === 'undefined') {
-      return
-    }
-    window.localStorage.setItem(CONTEXT_SIZE_STORAGE_KEY, String(value))
-  })
+  let contextSizeSaveTimer = null
 
   const updateContextSize = value => {
     let next = Number(value)
     if (!Number.isFinite(next)) {
       next = 0
     }
-    next = Math.min(30, Math.max(0, next))
-    contextSize.value = Math.round(next / 5) * 5
+    contextSize.value = Math.min(100, Math.max(0, next))
   }
+
+  const saveContextSize = async (value) => {
+    try {
+      await chatAPI.updateContextSize(value)
+    } catch (error) {
+      message.warning('上下文窗口大小保存失败：' + (error.message || '未知错误'))
+    }
+  }
+
+  watch(contextSize, value => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    if (contextSizeSaveTimer) {
+      clearTimeout(contextSizeSaveTimer)
+    }
+    contextSizeSaveTimer = setTimeout(() => saveContextSize(value), 500)
+  })
 
   let previousSelectedModelId = null
   let scrollTimer = null
@@ -294,10 +301,6 @@ export const useChatWorkspace = (props, emit, options = {}) => {
     if (temperature.value !== null && temperature.value !== undefined && temperature.value !== '') {
       formData.append('temperature', String(temperature.value))
     }
-
-    if (contextSize.value > 0) {
-      formData.append('contextSize', String(contextSize.value))
-    }
   }
 
   const isStreaming = computed(() => props.isStreaming)
@@ -309,7 +312,7 @@ export const useChatWorkspace = (props, emit, options = {}) => {
     if (oldValue === true && newValue === false && ttsPlayback.autoPlay.value) {
       const messages = props.currentMessages
       const lastMessage = messages[messages.length - 1]
-      if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content) {
+      if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content && lastMessage.status !== 'cancelled') {
         ttsPlayback.play(lastMessage, message)
       }
     }
@@ -835,8 +838,12 @@ export const useChatWorkspace = (props, emit, options = {}) => {
     return pre
   }
 
+  // 发送重入守卫：ensureMessageNo 为异步预检，期间 isStreaming 尚未置位、草稿未清空，
+  // 快速连按 Enter 会重复发送同一条消息，这里同步置位 + finally 释放来防重入
+  let isSubmitting = false
+
   const sendMessage = async () => {
-    if (props.isStreaming) {
+    if (props.isStreaming || isSubmitting) {
       return
     }
 
@@ -847,43 +854,49 @@ export const useChatWorkspace = (props, emit, options = {}) => {
 
     const outgoingPrompt = messageContent || buildAttachmentFallbackPrompt()
 
-    // 预分配服务端 messageNo 与会话身份：每条用户消息发送前都有后端 id，重试时才可比对
-    const pre = await ensureMessageNo()
-    if (!pre) {
-      return
+    isSubmitting = true
+
+    try {
+      // 预分配服务端 messageNo 与会话身份：每条用户消息发送前都有后端 id，重试时才可比对
+      const pre = await ensureMessageNo()
+      if (!pre) {
+        return
+      }
+      const userMessageNo = pre.messageNo
+
+      const userMessage = {
+        id: userMessageNo,
+        messageNo: userMessageNo,
+        hasAccurateTimestamp: true,
+        role: 'user',
+        content: outgoingPrompt,
+        timestamp: new Date()
+      }
+
+      emit('append-message', userMessage)
+
+      draftMessage.value = ''
+      setTimeout(adjustTextareaHeight, 0)
+      setTimeout(scrollToBottom, 100)
+
+      const formData = new FormData()
+      formData.append('prompt', outgoingPrompt)
+      formData.append('messageNo', userMessageNo)
+
+      attachedFiles.value.forEach(file => {
+        formData.append('files', file)
+      })
+
+      appendSharedMessageParams(formData)
+
+      // 新会话时 pre 已预建会话行：用返回的真实 sessionNo 作为本次 chatId，替换本地 temp 占位 id
+      const effectiveChatId = pre.sessionNo || props.currentChatId
+      emit('send-message', formData, effectiveChatId)
+
+      attachedFiles.value = []
+    } finally {
+      isSubmitting = false
     }
-    const userMessageNo = pre.messageNo
-
-    const userMessage = {
-      id: userMessageNo,
-      messageNo: userMessageNo,
-      hasAccurateTimestamp: true,
-      role: 'user',
-      content: outgoingPrompt,
-      timestamp: new Date()
-    }
-
-    emit('append-message', userMessage)
-
-    draftMessage.value = ''
-    setTimeout(adjustTextareaHeight, 0)
-    setTimeout(scrollToBottom, 100)
-
-    const formData = new FormData()
-    formData.append('prompt', outgoingPrompt)
-    formData.append('messageNo', userMessageNo)
-
-    attachedFiles.value.forEach(file => {
-      formData.append('files', file)
-    })
-
-    appendSharedMessageParams(formData)
-
-    // 新会话时 pre 已预建会话行：用返回的真实 sessionNo 作为本次 chatId，替换本地 temp 占位 id
-    const effectiveChatId = pre.sessionNo || props.currentChatId
-    emit('send-message', formData, effectiveChatId)
-
-    attachedFiles.value = []
   }
 
   const cancelStreamingRequest = () => {
@@ -1039,6 +1052,14 @@ export const useChatWorkspace = (props, emit, options = {}) => {
   onMounted(async () => {
     await loadSourceOptions()
     await loadModelOptions()
+
+    // 加载用户持久化的上下文窗口大小
+    chatAPI.getContextSize().then(size => {
+      contextSize.value = size
+    }).catch(error => {
+      console.warn('加载上下文窗口大小失败', error)
+    })
+
     if (messagesRef.value) {
       messagesRef.value.addEventListener('scroll', handleScroll, { passive: true })
     }
@@ -1057,6 +1078,10 @@ export const useChatWorkspace = (props, emit, options = {}) => {
 
     if (scrollToBottomTimer) {
       cancelAnimationFrame(scrollToBottomTimer)
+    }
+
+    if (contextSizeSaveTimer) {
+      clearTimeout(contextSizeSaveTimer)
     }
   })
 

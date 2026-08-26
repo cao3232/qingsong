@@ -119,6 +119,21 @@ public class UserConfigServiceImpl implements UserConfigService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean updateContextSize(Long userId, Integer contextSize) {
+        if (userId == null) {
+            throw new RuntimeException("用户ID不能为空");
+        }
+
+        UserConfig userConfig = new UserConfig();
+        userConfig.setId(userId);
+        userConfig.setContextSize(contextSize);
+        userConfig.setUpdatedAt(new Date());
+
+        return userConfigMapper.updateById(userConfig) > 0;
+    }
+
+    @Override
     public UserConfig login(String account, String userPassword) {
         // 根据用户账号去查询
         UserConfig userConfig = userConfigMapper.selectOne(new LambdaQueryWrapper<UserConfig>()

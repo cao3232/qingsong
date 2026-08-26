@@ -30,6 +30,8 @@
           <span class="sender-name">{{ senderName }}</span>
           <span v-if="showMessageTime" class="message-time">{{ formatTime(message.timestamp) }}</span>
           <span v-if="props.message.chatModel" class="chat-model">powered by {{ props.message.chatModel }}</span>
+          <span v-if="messageStatus === 'cancelled'" class="message-cancelled-badge"
+            title="回复未完成，已生成内容已保存">已停止生成</span>
           <span v-if="props.message.elapsedMs != null && !props.loading" class="message-elapsed-time" title="本次模型流式响应耗时">
             耗时 {{ formatElapsedTime(props.message.elapsedMs) }}
           </span>
@@ -1253,6 +1255,17 @@ const saveEdit = () => {
             color: var(--chat-text-muted, #64748b);
             background: rgba(148, 163, 184, 0.15);
           }
+        }
+
+        .message-cancelled-badge {
+          padding: 1px 8px 2px;
+          border-radius: 10px;
+          background: color-mix(in srgb, var(--chat-danger, #dc2626) 10%, transparent);
+          color: var(--chat-danger-text, #991b1b);
+          font-size: 11px;
+          font-weight: 500;
+          cursor: default;
+          white-space: nowrap;
         }
 
         .message-elapsed-time {

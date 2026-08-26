@@ -148,8 +148,8 @@ ix<template>
               </div>
               <div class="overflow-menu-item setting-row">
                 <span class="overflow-menu-label">上下文</span>
-                <input class="overflow-number-input" type="number" min="0" max="30" step="5" :value="contextSize"
-                  @change="handleContextSizeChange" title="最近上下文消息条数（0 表示使用默认，每 5 条一档）" />
+                <input class="overflow-number-input" type="number" min="0" max="100" step="1" :value="contextSize"
+                  @change="handleContextSizeChange" title="最近上下文消息条数（0 表示无上下文）" />
               </div>
             </div>
 

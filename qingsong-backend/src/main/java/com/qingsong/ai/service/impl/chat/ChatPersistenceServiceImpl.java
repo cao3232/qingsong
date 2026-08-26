@@ -12,6 +12,7 @@ import com.qingsong.ai.mapper.chat.AiChatSessionMapper;
 import com.qingsong.ai.service.chat.ChatCacheService;
 import com.qingsong.ai.service.chat.ChatPersistenceService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ChatPersistenceServiceImpl implements ChatPersistenceService {
@@ -79,14 +81,16 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void appendAssistantMessage(String bizType, String roleCode, String sessionNo, String content, String status, String chatModel) {
+    public void appendAssistantMessage(String bizType, String roleCode, String sessionNo, String content, String signalType, String chatModel) {
         if (!StringUtils.hasText(content)) {
             return;
         }
 
+        log.debug("追加助手消息: sessionNo={}, signalType={}, contentLength={}", sessionNo, signalType, content.length());
+
         AiChatSession session = getOrCreateSession(bizType, roleCode, sessionNo, roleCode);
         Message assistantMessage = new AssistantMessage(content);
-        AiChatMessage persisted = persistMessage(session, assistantMessage, normalizeStatus(status), isSuccessStatus(status) ? null : content, chatModel, null);
+        AiChatMessage persisted = persistMessage(session, assistantMessage, normalizeStatus(signalType), isSuccessStatus(signalType) ? null : content, chatModel, null);
         updateSessionAfterMessage(session, persisted);
 
         chatCacheService.appendActiveMessage(sessionNo, toMessage(persisted));
@@ -151,12 +155,28 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
 
     @Override
     public List<Message> getRecentMessages(String sessionNo, int limit) {
+        // limit <= 0 表示无上下文（含负数兜底），直接返回空列表
+        if (limit <= 0) {
+            return new ArrayList<>();
+        }
+
         List<Message> cachedMessages = chatCacheService.getContextMessages(sessionNo).orElse(null);
         if (!CollectionUtils.isEmpty(cachedMessages)) {
-            if (limit <= 0 || cachedMessages.size() <= limit) {
-                return cachedMessages;
+            // 用"实际数量"（ai:chat:session 缓存的 messageCount，读取路径保证缓存有值）判断缓存是否足够
+            AiChatSession session = findSessionBySessionNo(sessionNo, true, true);
+            int actual = (session != null && session.getMessageCount() != null) ? session.getMessageCount() : 0;
+            int need = Math.min(limit, actual);
+            if (cachedMessages.size() >= need) {
+                if (cachedMessages.size() > limit) {
+                    // 窗口变小，缓存比需要的多，截取最近 limit 条（拷贝，避免视图污染）
+                    return new ArrayList<>(cachedMessages.subList(cachedMessages.size() - limit, cachedMessages.size()));
+                }
+                // 缓存刚好或会话本身消息较少，整体返回（拷贝）
+                return new ArrayList<>(cachedMessages);
             }
-            return cachedMessages.subList(cachedMessages.size() - limit, cachedMessages.size());
+            // 缓存不足（窗口变大 / 缓存过期残留），回 DB 补全
+            log.debug("会话缓存消息数不足，回数据库查询: sessionNo={}, cachedSize={}, need={}, limit={}",
+                    sessionNo, cachedMessages.size(), need, limit);
         }
 
         AiChatSession session = findSessionBySessionNo(sessionNo, true, true);
@@ -217,9 +237,9 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
     }
 
     @Override
-    public Map<String, String> selectChatModelByIds(List<String> assistantIds) {
+    public Map<String, String> selectChatModelByIds(List<String> messageNos) {
         QueryWrapper<AiChatMessage> queryWrapper = new QueryWrapper<AiChatMessage>()
-                .in("message_no", assistantIds)
+                .in("message_no", messageNos)
                 .eq("deleted", 0)
                 .eq("message_type", "ASSISTANT")
                 .select("message_no", "chat_model");
@@ -573,21 +593,23 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
         return UUID.randomUUID().toString().replace("-", "");
     }
 
-    private String normalizeStatus(String status) {
-        if (!StringUtils.hasText(status)) {
+    private String normalizeStatus(String signalType) {
+        log.debug("normalizeStatus 入参: signalType={}", signalType);
+        if (!StringUtils.hasText(signalType)) {
             return MESSAGE_STATUS_SUCCESS;
         }
-        if ("cancel".equalsIgnoreCase(status)) {
+        // 兼容 onCancel / cancel 两种写法
+        if ("onCancel".equalsIgnoreCase(signalType) || "cancel".equalsIgnoreCase(signalType)) {
             return "CANCELLED";
         }
-        if ("onError".equalsIgnoreCase(status) || "error".equalsIgnoreCase(status)) {
+        if ("onError".equalsIgnoreCase(signalType) || "error".equalsIgnoreCase(signalType)) {
             return "ERROR";
         }
         return MESSAGE_STATUS_SUCCESS;
     }
 
-    private boolean isSuccessStatus(String status) {
-        return "SUCCESS".equalsIgnoreCase(normalizeStatus(status));
+    private boolean isSuccessStatus(String signalType) {
+        return "SUCCESS".equalsIgnoreCase(normalizeStatus(signalType));
     }
 
     private String defaultIfBlank(String value, String fallback) {

@@ -484,9 +484,16 @@ export const useAIChatPage = () => {
         })
       })
 
-      // 已被取消：丢弃累积内容，移除本次助手消息，不再写回
+      // 已被取消：保留已生成的部分内容（后端会随流终止持久化该内容），
+      // 仅当尚未生成任何内容（后端同样不落库）时才丢弃本次占位消息
       if (result.status === 'cancelled' || isRequestCancelled()) {
-        discardAssistantMessage()
+        const partialContent = result && result.content ? String(result.content) : ''
+        if (partialContent.trim() && partialContent.trim() !== '请求回复中...') {
+          assistantMessageRef.content = partialContent
+          assistantMessageRef.status = 'cancelled'
+        } else {
+          discardAssistantMessage()
+        }
         return
       }
 
@@ -555,7 +562,7 @@ export const useAIChatPage = () => {
     if (!isStreaming.value) return
 
     isStreaming.value = false
-    // 失效本次请求令牌，让 sendMessage 的循环/最终写入检测到取消并丢弃本次回复
+    // 失效本次请求令牌，让 sendMessage 检测到取消并决定保留部分内容还是丢弃
     activeRequestToken = null
     if (abortController) {
       abortController.abort()
@@ -563,11 +570,8 @@ export const useAIChatPage = () => {
     }
     message.info('已取消请求')
 
-    // 立即移除正在流式中的助手消息（按引用由 sendMessage 兜底，避免重复移除）
-    const lastMessage = currentMessages.value[currentMessages.value.length - 1]
-    if (lastMessage && lastMessage.role === 'assistant') {
-      currentMessages.value.pop()
-    }
+    // 不再移除流式中的助手消息：已生成的部分内容后端会随流终止持久化，
+    // 保留在列表中与后端保持一致；sendMessage 的取消分支负责写回最终内容或丢弃空消息
   }
 
   const updateCurrentMessages = newMessages => {

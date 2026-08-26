@@ -60,7 +60,8 @@ test('splitPdfTextIntoSegments removes blank input and keeps sentence boundaries
 })
 
 test('splitPdfTextIntoSegments hard-splits a sentence longer than the limit', () => {
-  assert.deepEqual(splitPdfTextIntoSegments('abcdefghij', 4), ['abcd', 'efgh', 'ij'])
+  // 无标点长句被兜底硬切，并在段尾追加句号，避免 TTS 对无标点结尾长段截尾
+  assert.deepEqual(splitPdfTextIntoSegments('abcdefghij', 4), ['abcd。', 'efgh。', 'ij。'])
 })
 
 test('splitPdfTextIntoSegments preserves every non-whitespace character', () => {
@@ -113,8 +114,22 @@ test('findStartIndexFromPage returns the first segment at or after a page', () =
     { page: 3, content: 'd' }
   ]
   assert.equal(findStartIndexFromPage(segments, 1), 0)
-  assert.equal(findStartIndexFromPage(segments, 2), 2)
-  assert.equal(findStartIndexFromPage(segments, 3), 3)
+  // page 2 的前一段（page 1 的 'b'）没有句末标点，回退一步组成完整句
+  assert.equal(findStartIndexFromPage(segments, 2), 1)
+  // page 3 的前一段（page 2 的 'c'）没有句末标点，回退一步组成完整句
+  assert.equal(findStartIndexFromPage(segments, 3), 2)
+})
+
+test('findStartIndexFromPage stays at the page boundary when previous segment ends with punctuation', () => {
+  const segments = [
+    { page: 1, content: 'a。' },
+    { page: 2, content: 'b' },
+    { page: 3, content: 'c' }
+  ]
+  // page 1 的 'a。' 以句末标点结尾，page 2 不需要回退
+  assert.equal(findStartIndexFromPage(segments, 2), 1)
+  // page 2 的 'b' 没有句末标点，page 3 回退一步到 page 2
+  assert.equal(findStartIndexFromPage(segments, 3), 1)
 })
 
 test('findStartIndexFromPage falls back to the last segment when page is past all text', () => {

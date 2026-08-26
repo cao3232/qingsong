@@ -2,6 +2,8 @@ package com.qingsong.ai.service.impl.chat;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.qingsong.ai.entity.po.ChatHistory;
 import com.qingsong.ai.entity.po.chat.Msg;
 import com.qingsong.ai.service.chat.ChatCacheService;
@@ -30,12 +32,23 @@ public class ChatCacheServiceImpl implements ChatCacheService {
     private static final Duration SESSION_META_TTL = Duration.ofHours(6);
     private static final Duration ACTIVE_MESSAGES_TTL = Duration.ofHours(2);
     private static final Duration CONTEXT_MESSAGES_TTL = Duration.ofHours(24);
+    private static final Duration LOCAL_CONTEXT_TTL = Duration.ofSeconds(30);
 
     private static final String SESSION_META_KEY = "ai:chat:session:%s";
     private static final String ACTIVE_MESSAGES_KEY = "ai:chat:active:%s";
     private static final String CONTEXT_MESSAGES_KEY = "ai:chat:ctx:%s";
 
     private final StringRedisTemplate stringRedisTemplate;
+
+    /**
+     * 会话级本地上下文缓存（Caffeine，TTL 30s，自动过期清理）：
+     * 缓解一请求内 MessageChatMemoryAdvisor 多次读取重复查 Redis/DB。
+     * 与会话删除/重试的清理统一走 evictSessionCaches / deleteLastRound。
+     */
+    private final Cache<String, List<Message>> localContextCache = Caffeine.newBuilder()
+            .expireAfterWrite(LOCAL_CONTEXT_TTL)
+            .maximumSize(10_000)
+            .build();
 
     @Override
     public Optional<ChatHistory> getSessionMeta(String sessionNo) {
@@ -92,14 +105,17 @@ public class ChatCacheServiceImpl implements ChatCacheService {
     }
 
     @Override
-    public void appendContextMessages(String sessionNo, List<Message> messages, int maxSize) {
-        if (CollectionUtils.isEmpty(messages)) {
+    public Optional<List<Message>> getLocalContextMessages(String sessionNo) {
+        List<Message> messages = localContextCache.getIfPresent(sessionNo);
+        return CollectionUtils.isEmpty(messages) ? Optional.empty() : Optional.of(messages);
+    }
+
+    @Override
+    public void cacheLocalContextMessages(String sessionNo, List<Message> messages) {
+        if (sessionNo == null || CollectionUtils.isEmpty(messages)) {
             return;
         }
-        List<Message> existing = getContextMessages(sessionNo).orElseGet(ArrayList::new);
-        existing.addAll(messages);
-        int startIndex = Math.max(0, existing.size() - maxSize);
-        cacheContextMessages(sessionNo, new ArrayList<>(existing.subList(startIndex, existing.size())));
+        localContextCache.put(sessionNo, new ArrayList<>(messages));
     }
 
     @Override
@@ -109,6 +125,7 @@ public class ChatCacheServiceImpl implements ChatCacheService {
                 formatKey(ACTIVE_MESSAGES_KEY, sessionNo),
                 formatKey(CONTEXT_MESSAGES_KEY, sessionNo)
         ));
+        localContextCache.invalidate(sessionNo);
     }
 
     /**
@@ -122,6 +139,7 @@ public class ChatCacheServiceImpl implements ChatCacheService {
     public void deleteLastRound(String sessionNo) {
         clearLastRoundFromCache(sessionNo, this::getContextMessages, this::cacheContextMessages);
         clearLastRoundFromCache(sessionNo, this::getActiveMessages, this::cacheActiveMessages);
+        localContextCache.invalidate(sessionNo);
     }
 
     private void clearLastRoundFromCache(

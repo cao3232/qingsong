@@ -62,6 +62,11 @@ public class UserConfig {
     private String lastRoleName;
 
     /**
+     * 聊天上下文窗口大小（0 表示使用后端默认）
+     */
+    private Integer contextSize;
+
+    /**
      * 创建日期
      */
     @TableField(fill = FieldFill.INSERT)

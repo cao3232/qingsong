@@ -516,5 +516,28 @@ export const chatAPI = {
       `${API_BASE_URL}/message/send-email-html/${encodePathParam(roleId)}/${encodePathParam(messageNo)}`,
       { timeout: 60000 }
     )
+  },
+
+  // 获取当前用户的聊天上下文窗口大小（0 表示无上下文）
+  async getContextSize() {
+    try {
+      const data = await http.get(`${API_BASE_URL}/user-config/me/context-size`)
+      if (!data.ok) {
+        throw new Error(data.msg || '获取上下文窗口大小失败')
+      }
+      return data.data?.size ?? 0
+    } catch (error) {
+      console.error('Chat API Error (contextSize):', error)
+      return 0
+    }
+  },
+
+  // 更新当前用户的聊天上下文窗口大小（0-100，0 表示使用默认）
+  async updateContextSize(size) {
+    const data = await http.put(`${API_BASE_URL}/user-config/me/context-size`, size)
+    if (!data.ok) {
+      throw new Error(data.msg || '更新上下文窗口大小失败')
+    }
+    return data
   }
 }

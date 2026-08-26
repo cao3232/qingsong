@@ -127,7 +127,7 @@ public class ChatTerminationHandler {
     private void persistAssistantMessage(ChatRequest request, String signalType, String content) {
         String persistedContent = content;
         if ((persistedContent == null || persistedContent.isBlank()) && "onError".equalsIgnoreCase(signalType)) {
-            persistedContent = buildFriendlyErrorMessage(null);
+            persistedContent = "⚠️抱歉，AI 生成内容失败，请稍后重试";
         }
         if (persistedContent == null || persistedContent.isBlank()) {
             return;
@@ -141,10 +141,6 @@ public class ChatTerminationHandler {
                 signalType,
                 request.getChatOptions().getModel()
         );
-    }
-
-    private String buildFriendlyErrorMessage(String message) {
-        return "⚠️错误信息: " + message;
     }
 
 }

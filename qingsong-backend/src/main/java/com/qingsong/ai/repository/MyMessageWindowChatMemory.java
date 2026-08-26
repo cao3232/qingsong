@@ -7,7 +7,6 @@ import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.util.Assert;
 
 import java.util.ArrayList;
@@ -86,12 +85,7 @@ public class MyMessageWindowChatMemory implements ChatMemory {
             processedMessages.removeIf(SystemMessage.class::isInstance);
         }
 
-        for (Message newMessage : newMessages) {
-            if (isDuplicateUserMessage(processedMessages, newMessage)) {
-                continue;
-            }
-            processedMessages.add(newMessage);
-        }
+        processedMessages.addAll(newMessages);
 
         if (processedMessages.size() <= this.maxMessages) {
             return processedMessages;
@@ -108,15 +102,6 @@ public class MyMessageWindowChatMemory implements ChatMemory {
             trimmedMessages.add(message);
         }
         return trimmedMessages;
-    }
-
-    private boolean isDuplicateUserMessage(List<Message> existingMessages, Message newMessage) {
-        if (!(newMessage instanceof UserMessage) || existingMessages.isEmpty()) {
-            return false;
-        }
-        Message latestMessage = existingMessages.get(existingMessages.size() - 1);
-        return latestMessage instanceof UserMessage
-                && newMessage.getText().equals(latestMessage.getText());
     }
 
     public static Builder builder() {

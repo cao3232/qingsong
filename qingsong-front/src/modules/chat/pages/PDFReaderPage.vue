@@ -29,6 +29,15 @@
         </select>
         <input :value="voiceDesign" placeholder="例如：温柔、舒缓、适合长时间阅读" @change="setVoiceDesign($event.target.value)" />
       </label>
+      <label class="split-mode-field"
+        :title="'分句方式：自动=短行按行、长行按标点；按行=每行一句；按标点=忽略换行按句号分句'">
+        <span>分句</span>
+        <select :value="splitMode" @change="setSplitMode($event.target.value)">
+          <option value="auto">自动混合</option>
+          <option value="line">按行分割</option>
+          <option value="punct">按标点</option>
+        </select>
+      </label>
       <label class="api-key-field" :title="'API Key 按浏览器来源分别保存；局域网/其他浏览器访问需各自配置一次'">
         <span>TTS Key</span>
         <input :value="apiKey" placeholder="粘贴 MiMo API Key（内置 Key 可能失效）" @change="saveApiKey($event.target.value)" />
@@ -82,16 +91,21 @@
           <PDFReaderViewer :file="file" :page-number="pageNumber" :scale="scale" @page-count="setPageCount"
             @page-text="setPageText" @page-change="setPage" @scale-change="setScale" @outline="setOutline"
             @text-done="onTextDone" @load-error="handleLoadError" @render-error="errorMessage = 'PDF 页面渲染失败'" />
+          <div v-if="(isPlaying || isPaused) && currentSegmentText" class="reading-text">{{ currentSegmentText }}</div>
           <footer class="reader-player">
-            <button class="play-button" type="button" :title="isPlaying ? '停止朗读' : '开始朗读'"
-              @click="isPlaying ? stop() : play()">{{ isPlaying ? '■' : '▶' }}</button>
-            <div class="player-copy"><strong>{{ isPlaying ? `正在朗读第 ${pageNumber} 页` : '准备朗读' }}</strong><span>{{
+            <button class="play-button" type="button"
+              :title="isPaused ? '继续朗读' : isPlaying ? '暂停朗读' : '开始朗读全文'"
+              @click="isPaused ? resume() : isPlaying ? pause() : playAll()">
+              {{ isPaused ? '▶' : isPlaying ? '⏸' : '▶' }}
+            </button>
+            <button v-if="isPlaying || isPaused" class="stop-button" type="button" title="停止朗读" @click="stop">⏹</button>
+            <button class="page-play-button" type="button" title="仅朗读当前页" @click="playCurrentPage">朗读本页</button>
+            <div class="player-copy"><strong>{{ isPlaying ? `正在朗读第 ${pageNumber} 页` : isPaused ? '朗读已暂停' : '准备朗读' }}</strong><span>{{
               errorMessage || '按页连续播放文字内容' }}</span></div>
             <label class="rate-control">语速<select :value="playbackRate" @change="setPlaybackRate($event.target.value)">
                 <option v-for="rate in TTS_PLAYBACK_RATES" :key="rate.value" :value="rate.value">{{ rate.label }}
                 </option>
               </select></label>
-            <button class="stop-button" type="button" title="停止" @click="stop">停止</button>
           </footer>
         </div>
       </div>
@@ -105,11 +119,11 @@ import { PDFReaderViewer } from '../components/index.js'
 import { usePdfReaderPage } from '../composables/index.js'
 
 const {
-  apiKey, clearRecent, closeFile, cloneSample, errorMessage, file, fileInputRef, fileName, flatOutline, goBack,
-  handleDrop, handleFileInput, handleLoadError, isDragging, isPlaying, jumpToOutline, onTextDone, openRecent,
-  pageNumber, play, playbackRate, progressText, recentPdfs, removeRecent, saveApiKey, selectFile, setPage,
-  setPageCount, setPageText, setPlaybackRate, setScale, setVoice, setVoiceDesign, setOutline, showOutline, stop,
-  toggleOutline, TTS_PLAYBACK_RATES, TTS_VOICES, voice, voiceDesign, scale
+  apiKey, clearRecent, closeFile, currentSegmentText, cloneSample, errorMessage, file, fileInputRef, fileName, flatOutline, goBack,
+  handleDrop, handleFileInput, handleLoadError, isDragging, isPaused, isPlaying, jumpToOutline, onTextDone, openRecent,
+  pageNumber, pause, play, playAll, playCurrentPage, playbackRate, progressText, recentPdfs, removeRecent, resume, saveApiKey,
+  selectFile, setPage, setPageCount, setPageText, setPlaybackRate, setScale, setSplitMode, setVoice, setVoiceDesign, setOutline,
+  showOutline, splitMode, stop, toggleOutline, TTS_PLAYBACK_RATES, TTS_VOICES, voice, voiceDesign, voiceDesignOptions, scale
 } = usePdfReaderPage()
 
 const formatFileSize = bytes => {
@@ -266,7 +280,8 @@ const showVoiceSettings = ref(false)
 .open-button,
 .settings-button,
 .upload-state button,
-.stop-button {
+.stop-button,
+.page-play-button {
   border: 1px solid #475569;
   padding: 7px 12px;
   background: #243443;
@@ -494,6 +509,20 @@ const showVoiceSettings = ref(false)
   color: #fff;
 }
 
+.reading-text {
+  flex: none;
+  max-height: 72px;
+  overflow-y: auto;
+  padding: 8px 18px;
+  border-top: 1px solid #334155;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .play-button {
   width: 42px;
   height: 42px;
@@ -551,7 +580,7 @@ const showVoiceSettings = ref(false)
     width: 100%;
   }
 
-  .stop-button {
+  .reader-player .page-play-button {
     display: none;
   }
 
