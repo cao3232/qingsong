@@ -14,6 +14,12 @@
   --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   --transition-fast: 0.1s;
   --transition-normal: 0.2s;
+  --scrollbar-size-sm: 4px;
+  --scrollbar-size-md: 8px;
+  --scrollbar-size-lg: 14px;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.22);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.35);
+  --scrollbar-track: rgba(0, 0, 0, 0.04);
 }
 
 .dark {
@@ -25,6 +31,9 @@
   --border-color: #4a5568;
   --shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.25);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.4);
+  --scrollbar-track: rgba(255, 255, 255, 0.06);
 }
 
 * {
@@ -47,21 +56,64 @@ body {
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: var(--scrollbar-size-md);
+  height: var(--scrollbar-size-md);
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--scrollbar-track);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--primary-color);
-  border-radius: 3px;
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--primary-color-light);
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* 三档滚动条尺寸系统：小(表格/代码块) / 中(面板/侧边栏/弹窗) / 大(聊天长文区) */
+.scrollbar-sm { --scrollbar-size: var(--scrollbar-size-sm); }
+.scrollbar-md { --scrollbar-size: var(--scrollbar-size-md); }
+.scrollbar-lg { --scrollbar-size: var(--scrollbar-size-lg); }
+
+.scrollbar-sm,
+.scrollbar-md,
+.scrollbar-lg {
+  scrollbar-width: thin;
+  scrollbar-color: var(--chat-scrollbar-thumb, var(--scrollbar-thumb)) var(--chat-scrollbar-track, var(--scrollbar-track));
+
+  &::-webkit-scrollbar,
+  & *::-webkit-scrollbar {
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
+  }
+
+  &::-webkit-scrollbar-track,
+  & *::-webkit-scrollbar-track {
+    background: var(--chat-scrollbar-track, var(--scrollbar-track));
+    border: 1px solid var(--chat-scrollbar-border, transparent);
+    border-radius: var(--chat-radius, 4px);
+  }
+
+  &::-webkit-scrollbar-thumb,
+  & *::-webkit-scrollbar-thumb {
+    background: var(--chat-scrollbar-thumb, var(--scrollbar-thumb));
+    border: 2px solid;
+    border-color: var(--chat-bevel-light, transparent) var(--chat-bevel-shadow, transparent) var(--chat-bevel-shadow, transparent) var(--chat-bevel-light, transparent);
+    border-radius: var(--chat-radius, 4px);
+    min-height: 40px;
+
+    &:hover {
+      background: var(--chat-panel-hover, var(--scrollbar-thumb-hover));
+    }
+
+    &:active {
+      border-color: var(--chat-bevel-shadow, transparent) var(--chat-bevel-light, transparent) var(--chat-bevel-light, transparent) var(--chat-bevel-shadow, transparent);
+    }
+  }
 }
 
 ::selection {
@@ -135,7 +187,11 @@ a {
 
 @media (max-width: 768px) {
   html { font-size: 14px; }
-  ::-webkit-scrollbar { width: 4px; }
+  :root {
+    --scrollbar-size-sm: 3px;
+    --scrollbar-size-md: 4px;
+    --scrollbar-size-lg: 8px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
