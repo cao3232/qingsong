@@ -38,7 +38,7 @@
       @update:showRoleDescriptionModal="showRoleDescriptionModal = $event" />
 
     <div class="messages-area">
-      <div class="messages" ref="messagesRef">
+      <div class="messages scrollbar-lg" ref="messagesRef">
         <div v-if="virtualPaddingStart > 0" class="message-list-spacer"
           :style="{ height: `${virtualPaddingStart}px` }"></div>
         <div v-for="virtualItem in virtualItems" :key="virtualItem.key" class="virtual-message-slot"
@@ -301,25 +301,6 @@ const {
     inset -2px -2px 0 var(--chat-inset-light, #ffffff);
   border-radius: var(--chat-radius, 0);
   padding: 16px clamp(14px, 3vw, 30px) 20px;
-}
-
-.messages::-webkit-scrollbar {
-  width: var(--chat-scrollbar-size, 17px);
-}
-
-.messages::-webkit-scrollbar-track {
-  background: var(--chat-scrollbar-track, repeating-conic-gradient(#c0c0c0 0% 25%, #ffffff 0% 50%) 50% / 2px 2px);
-  border: 1px solid var(--chat-scrollbar-border, #808080);
-}
-
-.messages::-webkit-scrollbar-thumb {
-  background: var(--chat-scrollbar-thumb, #c0c0c0);
-  border: 2px solid;
-  border-color: var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080) var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff);
-
-  &:hover {
-    background: var(--chat-panel-hover, #d4d4d4);
-  }
 }
 
 .message-list-spacer {
