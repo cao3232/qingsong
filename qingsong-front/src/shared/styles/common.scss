@@ -1,8 +1,8 @@
 // High performance global style primitives shared across modules.
 :root {
-  --primary-color: #667eea;
-  --primary-color-light: #a78bfa;
-  --secondary-color: #764ba2;
+  --primary-color: #0d9488;
+  --primary-color-light: #14b8a6;
+  --secondary-color: #0f766e;
   --text-color: #2d3748;
   --text-color-light: #718096;
   --bg-color: #f7fafc;
@@ -23,7 +23,7 @@
 }
 
 .dark {
-  --primary-color: #a78bfa;
+  --primary-color: #2dd4bf;
   --text-color: #e2e8f0;
   --text-color-light: #94a3b8;
   --bg-color: #1a202c;

@@ -21,6 +21,10 @@ http.interceptors.request.use((config) => {
   if (token) {
     config.headers.set('satoken', token)
   }
+  // FormData 场景下不能带显式的 application/json，否则后端 multipart 解析失败
+  if (config.data instanceof FormData) {
+    config.headers.delete('Content-Type')
+  }
   return config
 })
 
