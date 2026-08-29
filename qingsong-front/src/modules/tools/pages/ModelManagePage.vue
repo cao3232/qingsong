@@ -102,7 +102,7 @@
             <n-empty description="该来源下暂无模型" />
           </div>
 
-          <div v-else class="model-table-container" ref="modelListRef" @scroll="handleModelListScroll">
+          <div v-else class="model-table-container scrollbar-sm" ref="modelListRef" @scroll="handleModelListScroll">
             <div class="list-progress" aria-hidden="true">
               <span :style="{ width: modelListProgress + '%' }"></span>
             </div>
@@ -1195,25 +1195,6 @@ watch(() => sources.value.length, async () => {
   border-radius: 18px;
   border: 1px solid var(--app-border-color, #e5e7eb);
   background: var(--app-component-bg, rgba(255, 255, 255, 0.8));
-}
-
-.model-table-container::-webkit-scrollbar {
-  width: 8px;
-}
-
-.model-table-container::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 4px;
-}
-
-.model-table-container::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.18);
-  border-radius: 4px;
-  min-height: 40px;
-}
-
-.model-table-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
 }
 
 /* 数据表格 */

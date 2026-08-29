@@ -53,7 +53,7 @@
       </div>
 
       <!-- 数据表格 -->
-      <div v-else class="model-table-container">
+      <div v-else class="model-table-container scrollbar-sm">
         <table class="model-table">
           <thead>
             <tr>
@@ -496,21 +496,6 @@ onMounted(loadList)
   border: 1px solid rgba(255, 230, 214, 0.95);
   background: rgba(255, 255, 255, 0.8);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
-}
-
-.model-table-container::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.model-table-container::-webkit-scrollbar-track {
-  background: var(--app-bg-secondary, #f1f1f1);
-  border-radius: 3px;
-}
-
-.model-table-container::-webkit-scrollbar-thumb {
-  background: var(--app-border-color, #c1c1c1);
-  border-radius: 3px;
 }
 
 .model-table {

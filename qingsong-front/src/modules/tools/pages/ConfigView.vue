@@ -870,25 +870,6 @@ const handleTabClick = (tab) => {
   background: var(--app-component-bg, rgba(255, 255, 255, 0.8));
 }
 
-.model-table-container::-webkit-scrollbar {
-  width: 6px; /* 纵向滚动条宽度 */
-  height: 6px; /* 横向滚动条高度 */
-}
-
-.model-table-container::-webkit-scrollbar-track {
-  background: var(--app-bg-secondary, #f1f1f1);
-  border-radius: 3px;
-}
-
-.model-table-container::-webkit-scrollbar-thumb {
-  background: var(--app-border-color, #c1c1c1);
-  border-radius: 3px;
-}
-
-.model-table-container::-webkit-scrollbar-thumb:hover {
-  background: var(--app-text-secondary, #a1a1a1);
-}
-
 .model-table tbody tr:nth-child(even) {
   background: rgba(249, 250, 251, 0.5);
 }

@@ -43,7 +43,7 @@
       </div>
 
       <!-- 来源列表 -->
-      <div v-else class="model-table-container">
+      <div v-else class="model-table-container scrollbar-sm">
         <table class="model-table">
           <colgroup>
             <col style="width: 130px" />
@@ -606,22 +606,6 @@ onMounted(() => {
   border: 1px solid var(--app-border-color, #e5e7eb);
   background: var(--app-component-bg, rgba(255, 255, 255, 0.8));
 }
-.model-table-container::-webkit-scrollbar {
-  width: 8px;
-}
-.model-table-container::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 4px;
-}
-.model-table-container::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.18);
-  border-radius: 4px;
-  min-height: 40px;
-}
-.model-table-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
-}
-
 /* 数据表格 */
 .model-table {
   width: 100%;
