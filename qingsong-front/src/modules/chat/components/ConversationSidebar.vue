@@ -193,7 +193,7 @@
             <p>{{ toolsEmptyStateText }}</p>
           </div>
 
-          <div v-else class="tool-group-list">
+          <div v-else class="tool-group-list scrollbar-sm">
             <section v-for="group in availableToolGroups" :key="group.groupKey" class="tool-group-section">
               <button class="tool-group-chip" :class="{ active: isGroupSelected(group.groupKey) }"
                 @click="selectToolGroup(group.groupKey)">
@@ -248,7 +248,7 @@
           <p>暂无可用知识库</p>
           <NButton type="primary" size="small" @click="goToKnowledgeBase">去创建</NButton>
         </div>
-        <div v-else class="kb-list">
+        <div v-else class="kb-list scrollbar-sm">
           <div v-for="kb in knowledgeBases" :key="kb.id" class="kb-item"
             :class="{ selected: tempSelectedKB?.id === kb.id }" @click="tempSelectedKB = kb">
             <div class="kb-icon">
@@ -1772,19 +1772,6 @@ const clearDateFilter = () => {
       }
     }
 
-    &::-webkit-scrollbar {
-      width: 4px;
-    }
-
-    &::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    &::-webkit-scrollbar-thumb {
-      background: rgba(59, 130, 246, 0.3);
-      border-radius: 2px;
-    }
-
     .message-item {
       display: flex;
       gap: 12px;
@@ -1865,19 +1852,6 @@ const clearDateFilter = () => {
     max-height: 52vh;
     overflow-y: auto;
     padding: 2px 4px;
-
-    &::-webkit-scrollbar {
-      width: 4px;
-    }
-
-    &::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    &::-webkit-scrollbar-thumb {
-      background: rgba(14, 165, 233, 0.3);
-      border-radius: 999px;
-    }
   }
 
   .tool-group-section {
@@ -2062,19 +2036,6 @@ const clearDateFilter = () => {
     max-height: 400px;
     overflow-y: auto;
     padding: 4px;
-
-    &::-webkit-scrollbar {
-      width: 4px;
-    }
-
-    &::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    &::-webkit-scrollbar-thumb {
-      background: rgba(99, 102, 241, 0.3);
-      border-radius: 2px;
-    }
   }
 
   .kb-item {
