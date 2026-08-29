@@ -24,6 +24,7 @@ import javax.validation.Valid;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * 用户配置控制器
@@ -188,17 +189,11 @@ public class UserConfigController {
      */
     @GetMapping("/me/context-size")
     public Result<Map<String, Integer>> getCurrentContextSize() {
-        Long userId = resolveLoginUserId();
+        Long userId = StpUtil.getLoginIdAsLong();
         log.info("获取上下文窗口大小: userId={}", userId);
-        if (userId == null) {
-            return Result.fail("用户未登录");
-        }
-
         UserConfig userConfig = userConfigService.getUserConfigById(userId);
         // 未设置时返回默认值 30；显式设置 0 表示无上下文
-        Integer contextSize = userConfig != null && userConfig.getContextSize() != null
-                ? userConfig.getContextSize()
-                : 30;
+        Integer contextSize = Optional.ofNullable(userConfig).map(UserConfig::getContextSize).orElse(30);
         log.info("返回上下文窗口大小: userId={}, contextSize={}", userId, contextSize);
 
         Map<String, Integer> data = new HashMap<>();
@@ -214,11 +209,7 @@ public class UserConfigController {
      */
     @PutMapping("/me/context-size")
     public Result updateCurrentContextSize(@RequestBody Integer contextSize) {
-        Long userId = resolveLoginUserId();
-        if (userId == null) {
-            return Result.fail("用户未登录");
-        }
-
+        Long userId = StpUtil.getLoginIdAsLong();
         if (contextSize == null || contextSize < 0 || contextSize > 100) {
             return Result.fail("上下文窗口大小必须在 0-100 之间");
         }
@@ -231,20 +222,6 @@ public class UserConfigController {
         }
     }
 
-    private Long resolveLoginUserId() {
-        Object loginId = StpUtil.getLoginIdDefaultNull();
-        if (loginId == null) {
-            return null;
-        }
-        if (loginId instanceof Number number) {
-            return number.longValue();
-        }
-        try {
-            return Long.valueOf(loginId.toString());
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
 
     /**
      * 更新用户最后对话的role名称

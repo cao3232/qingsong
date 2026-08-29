@@ -2601,13 +2601,16 @@ const saveEdit = () => {
     box-shadow: 0 4px 12px color-mix(in srgb, var(--chat-shadow-color, #0f172a) 5%, transparent);
     position: relative;
 
-    .mermaid-render {
+.mermaid-render {
       display: flex;
       justify-content: center;
+      align-items: flex-start;
       width: 100%;
       max-width: 100%;
-      overflow-x: auto;
-      overscroll-behavior-x: contain;
+      max-height: min(60vh, 520px);
+overflow-x: auto;
+      overflow-y: auto;
+      overscroll-behavior: auto;
 
       svg {
         display: block;
@@ -2868,10 +2871,14 @@ const saveEdit = () => {
       margin-right: -4px;
     }
 
-    :deep(.mermaid-block) {
+:deep(.mermaid-block) {
       width: 100%;
       max-width: 100%;
       overflow: hidden;
+
+      .mermaid-render {
+        max-height: min(40vh, 420px);
+      }
     }
 
     :deep(table) {

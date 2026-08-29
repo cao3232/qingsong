@@ -2,14 +2,11 @@ package com.qingsong.ai.tools;
 
 import com.qingsong.ai.aspect.MyTools;
 
-import com.alibaba.excel.EasyExcel;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.qingsong.ai.entity.event.RoleEvent;
 import com.qingsong.ai.entity.po.role.Role;
 import com.qingsong.ai.mapper.role.RoleMapper;
 import com.qingsong.ai.service.impl.EmailServiceImpl;
-import com.qingsong.ai.tools.entity.ExecutionResult;
-import com.qingsong.ai.tools.entity.GenarateExcelParam;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -18,17 +15,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
-import org.springframework.validation.Errors;
-import org.springframework.validation.Validator;
 
-import java.io.File;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -53,9 +45,6 @@ public class AITools {
 
     @Autowired
     private ApplicationContext applicationContext;
-
-    @Autowired
-    private Validator validator;
 
     @Autowired
     private StringRedisTemplate redisTemplate;
@@ -92,54 +81,6 @@ public class AITools {
     //     @Tool(description = "send me a email with message")
     private void sendEmail(@ToolParam(description = "邮件主题，自己总结") String emailSubject, @ToolParam(description = "邮件内容") String emailContent) {
         emailService.sendSimpleMail(exportToEmail, emailSubject, emailContent);
-    }
-
-
-    // @Tool(description = "创建一个excel文档")
-    private ExecutionResult createExcel(GenarateExcelParam param) {
-        // 校验参数
-        Errors errors = validator.validateObject(param);
-        if (errors.hasErrors()) {
-            log.error("参数校验失败: {}", errors.getAllErrors());
-            return new ExecutionResult(false, errors.getAllErrors().stream().map(error -> error.getDefaultMessage()).collect(Collectors.joining(",")));
-        }
-        if (!Objects.equals(param.rows().get(0).size(), param.headers().size())) {
-            log.error("参数校验失败: {}", "表头和数据行数量不一致");
-            return new ExecutionResult(false, "参数校验失败: 表头和数据行数量不一致");
-        }
-
-        // 创建excel文件
-        CompletableFuture.runAsync(() -> {
-            String fileName = this.execCreateExcel(param);
-            // 发送到我的邮箱
-            // emailService.sendSimpleMail("15836208068@139.com", "excel文件", excelFile);
-
-        });
-        return new ExecutionResult(true, "excel文件创建成功");
-    }
-
-    String execCreateExcel(GenarateExcelParam param) {
-        String fileName = param.fileName() + ".xlsx";
-        File excelFile = new File(fileName);
-        try {
-            // 获取列数
-            List<String> headers = param.headers();
-            List<List<String>> headList = headers.stream()
-                    .map(header -> List.of(header)) // 将 "姓名" 变成 ["姓名"]
-                    .collect(Collectors.toList());
-
-            EasyExcel.write()
-                    .file(excelFile)
-                    .head(headList)
-                    .sheet(param.sheetName())
-                    .doWrite(param.rows());
-
-            return fileName;
-
-        } catch (Exception e) {
-            log.error("创建excel文件失败: {}", e.getMessage(), e);
-        }
-        return null;
     }
 
 

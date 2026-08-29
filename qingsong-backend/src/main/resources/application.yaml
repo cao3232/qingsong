@@ -118,6 +118,7 @@ sa-token:
   token-name: satoken
   # 前端仅通过 satoken 请求头传递 token
   is-read-body: false
+  is-login-last-save: true   # 登录时缓存 SaSession 到 Redis，建议开启
   is-read-cookie: false
   # token 有效期（单位：秒） 默认30天，-1 代表永久有效
   timeout: 2592000
