@@ -110,7 +110,7 @@ ix<template>
               <EllipsisHorizontalIcon class="icon" />
             </button>
           </template>
-          <div class="overflow-menu">
+          <div class="overflow-menu scrollbar-md">
             <div class="overflow-menu-section">
               <div class="overflow-menu-heading">信息</div>
               <div class="overflow-menu-item static">
@@ -269,12 +269,12 @@ ix<template>
   <NModal v-if="showRoleDescriptionModal" :show="showRoleDescriptionModal" preset="card"
     :title="roleDescription ? '角色描述' : '聊天历史统计'" style="width: 560px; max-height: 70vh"
     @update:show="handleRoleDescriptionModalUpdate">
-    <div class="role-description-modal">
+    <div class="role-description-modal scrollbar-md">
       <div class="modal-header">
         <span class="modal-title">{{ selectedRoleName || "AI Assistant" }}</span>
         <span class="modal-subtitle">{{ roleDescription ? '完整角色描述' : '按时间范围统计' }}</span>
       </div>
-      <div v-if="roleDescription" class="modal-content">
+      <div v-if="roleDescription" class="modal-content scrollbar-md">
         <p class="modal-text">{{ roleDescription }}</p>
       </div>
       <div class="modal-section">
@@ -952,25 +952,6 @@ const resetUsage = () => {
   overflow-y: auto;
   overscroll-behavior: contain;
 
-  &::-webkit-scrollbar {
-    width: var(--chat-scrollbar-size, 17px);
-  }
-
-  &::-webkit-scrollbar-track {
-    background: var(--chat-scrollbar-track, repeating-conic-gradient(#c0c0c0 0% 25%, #ffffff 0% 50%) 50% / 2px 2px);
-    border: 1px solid var(--chat-scrollbar-border, #808080);
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--chat-scrollbar-thumb, #c0c0c0);
-    border: 2px solid;
-    border-color: var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080) var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff);
-
-    &:hover {
-      background: var(--chat-panel-hover, #d4d4d4);
-    }
-  }
-
   .overflow-menu-section {
     display: flex;
     flex-direction: column;
@@ -1417,15 +1398,6 @@ const resetUsage = () => {
   max-height: 62vh;
   overflow-y: auto;
   padding-right: 4px;
-
-  &::-webkit-scrollbar {
-    width: 8px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--chat-border-soft, rgba(226, 232, 240, 0.9));
-    border-radius: 4px;
-  }
 }
 
 .modal-header {
@@ -1455,21 +1427,6 @@ const resetUsage = () => {
   background: var(--chat-surface, #ffffff);
   border: 2px solid;
   border-color: var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff) var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080);
-
-  &::-webkit-scrollbar {
-    width: var(--chat-scrollbar-size, 17px);
-  }
-
-  &::-webkit-scrollbar-track {
-    background: var(--chat-scrollbar-track, repeating-conic-gradient(#c0c0c0 0% 25%, #ffffff 0% 50%) 50% / 2px 2px);
-    border: 1px solid var(--chat-scrollbar-border, #808080);
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--chat-scrollbar-thumb, #c0c0c0);
-    border: 2px solid;
-    border-color: var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080) var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff);
-  }
 }
 
 .modal-text {
@@ -1576,21 +1533,6 @@ const resetUsage = () => {
   background: var(--chat-surface, #ffffff);
   border: 2px solid;
   border-color: var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff) var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080);
-
-  &::-webkit-scrollbar {
-    width: var(--chat-scrollbar-size, 17px);
-  }
-
-  &::-webkit-scrollbar-track {
-    background: var(--chat-scrollbar-track, repeating-conic-gradient(#c0c0c0 0% 25%, #ffffff 0% 50%) 50% / 2px 2px);
-    border: 1px solid var(--chat-scrollbar-border, #808080);
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--chat-scrollbar-thumb, #c0c0c0);
-    border: 2px solid;
-    border-color: var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080) var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff);
-  }
 }
 
 .modal-section {

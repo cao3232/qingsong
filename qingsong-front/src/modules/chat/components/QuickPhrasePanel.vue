@@ -14,7 +14,7 @@
       </div>
 
       <n-spin :show="loading">
-        <div class="panel-content">
+        <div class="panel-content scrollbar-sm">
           <n-list hoverable clickable>
             <n-list-item v-for="phrase in phrases" :key="phrase.id">
               <div class="phrase-item" :title="phrase.phrase" @click="selectPhrase(phrase.phrase)">
@@ -297,21 +297,6 @@ const closePanel = () => {
     flex-grow: 1;
     min-height: 0;
     color: var(--chat-text, var(--text-color));
-
-    &::-webkit-scrollbar {
-      width: var(--chat-scrollbar-size, 12px);
-    }
-
-    &::-webkit-scrollbar-track {
-      background: var(--chat-scrollbar-track, #c0c0c0);
-      border: 1px solid var(--chat-scrollbar-border, #808080);
-    }
-
-    &::-webkit-scrollbar-thumb {
-      background: var(--chat-scrollbar-thumb, #c0c0c0);
-      border: 2px solid;
-      border-color: var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080) var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff);
-    }
   }
 
   :deep(.n-list) {
