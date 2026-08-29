@@ -2769,26 +2769,10 @@ overflow-x: auto;
     font-size: 0.9em;
   }
 
-  /* 水平滚动条优化 */
+  /* 水平滚动条优化：代码块/表格用小档尺寸 */
   :deep(pre),
   :deep(.table-wrapper) {
-    &::-webkit-scrollbar {
-      height: 8px;
-    }
-
-    &::-webkit-scrollbar-track {
-      background: #f1f5f9;
-      border-radius: 4px;
-    }
-
-    &::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 4px;
-
-      &:hover {
-        background: #94a3b8;
-      }
-    }
+    --scrollbar-size: var(--scrollbar-size-sm);
   }
 
   @media (max-width: 768px) {
