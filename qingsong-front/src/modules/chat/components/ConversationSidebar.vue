@@ -47,7 +47,7 @@
         </button>
       </div>
 
-      <div class="chat-list">
+      <div class="chat-list scrollbar-md">
         <div v-if="filteredChats.length === 0" class="empty-placeholder">
           <div class="empty-icon">
             <ChatBubbleIcon />
@@ -99,7 +99,7 @@
           {{ isPreparingUserMessages ? "整理中" : "查看" }}
         </button>
       </div>
-      <div class="feature-cards">
+      <div class="feature-cards scrollbar-sm">
         <div class="feature-card feature-card-clickable"
           :class="{ active: ragEnabled, 'rag-card-connected': ragEnabled }" @click="handleOpenRag">
           <div class="feature-title">
@@ -147,7 +147,7 @@
             }}
           </span>
         </div>
-        <div class="message-list">
+        <div class="message-list scrollbar-md">
           <div v-if="isPreparingUserMessages" class="loading-placeholder">
             <NSpin size="small" />
             <span>正在加载用户消息...</span>
@@ -1218,25 +1218,6 @@ const clearDateFilter = () => {
       padding-right: 0;
       overflow-y: auto;
       min-height: 0;
-
-      &::-webkit-scrollbar {
-        width: 14px;
-      }
-
-      &::-webkit-scrollbar-track {
-        background: var(--chat-scrollbar-track, repeating-conic-gradient(#c0c0c0 0% 25%, #ffffff 0% 50%) 50% / 2px 2px);
-        border: 1px solid var(--chat-scrollbar-border, #808080);
-      }
-
-      &::-webkit-scrollbar-thumb {
-        background: var(--chat-scrollbar-thumb, #c0c0c0);
-        border: 2px solid;
-        border-color: var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080) var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff);
-
-        &:hover {
-          background: var(--chat-panel-hover, #d4d4d4);
-        }
-      }
     }
 
     .feature-card {
@@ -1415,29 +1396,6 @@ const clearDateFilter = () => {
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
       background: transparent;
-
-      &::-webkit-scrollbar {
-        width: var(--chat-scrollbar-size, 17px);
-      }
-
-      &::-webkit-scrollbar-track {
-        background: var(--chat-scrollbar-track, repeating-conic-gradient(#c0c0c0 0% 25%, #ffffff 0% 50%) 50% / 2px 2px);
-        border: 1px solid var(--chat-scrollbar-border, #808080);
-      }
-
-      &::-webkit-scrollbar-thumb {
-        background: var(--chat-scrollbar-thumb, #c0c0c0);
-        border: 2px solid;
-        border-color: var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080) var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff);
-
-        &:hover {
-          background: var(--chat-panel-hover, #d4d4d4);
-        }
-
-        &:active {
-          border-color: var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff) var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080);
-        }
-      }
 
       .empty-placeholder {
         display: flex;
