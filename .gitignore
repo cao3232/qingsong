@@ -29,5 +29,5 @@ secrets.*.yml
 public/webviewer/
 
 # ---------- 数据库备份数据(只留 schema,不留真实数据) ----------
+# 仅忽略备份脚本的导出产物 data-backup.sql;seed-data.sql 是部署种子数据,必须跟踪提交
 sql/data-backup.sql
-sql/*-data.sql

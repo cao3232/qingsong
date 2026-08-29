@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS user_config
     receive_email  VARCHAR(255) NULL COMMENT '接收邮箱',
     status         VARCHAR(32)  NULL DEFAULT 'ACTIVE' COMMENT '状态',
     last_role_name VARCHAR(128) NULL COMMENT '最后对话角色名',
+    context_size   INT          NULL DEFAULT 30 COMMENT '聊天上下文窗口大小(NULL 使用默认 30,0 表示无上下文,1-100 对应消息条数)',
     created_at     DATETIME     NULL COMMENT '创建时间',
     updated_at     DATETIME     NULL COMMENT '更新时间',
     UNIQUE KEY uk_account (account)
