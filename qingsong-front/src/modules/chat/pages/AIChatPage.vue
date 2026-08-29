@@ -1,6 +1,6 @@
   <template>
   <div
-    class="ai-chat-view"
+    class="ai-chat-view scrollbar-md"
     :class="{
       'sidebar-collapsed': sidebarCollapsed,
       'role-panel-expanded': !rolePanelCollapsed,
@@ -581,31 +581,5 @@ const handleRefreshSession = () => {
 @keyframes retroBlink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
-}
-
-/* Retro scrollbar override */
-.chat-container :deep(*::-webkit-scrollbar) {
-  width: var(--chat-scrollbar-size, 17px);
-  height: var(--chat-scrollbar-size, 17px);
-}
-
-.chat-container :deep(*::-webkit-scrollbar-track) {
-  background: var(--chat-scrollbar-track, repeating-conic-gradient(#c0c0c0 0% 25%, #ffffff 0% 50%) 50% / 2px 2px);
-  border: 1px solid var(--chat-scrollbar-border, #808080);
-}
-
-.chat-container :deep(*::-webkit-scrollbar-thumb) {
-  background: var(--chat-scrollbar-thumb, #c0c0c0);
-  border: 2px solid;
-  border-color: var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080) var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff);
-  border-radius: var(--chat-radius, 0);
-
-  &:hover {
-    background: var(--chat-panel-hover, #d4d4d4);
-  }
-
-  &:active {
-    border-color: var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff) var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080);
-  }
 }
 </style>
