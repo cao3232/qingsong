@@ -17,7 +17,7 @@ import {
   ttsAPI
 } from '../services/index.js'
 import { useDictStore } from '@/stores/dictStore'
-import { extractPlainText, splitTextIntoSegments } from '../utils/index.js'
+import { extractPlainText, extractReasoning, splitTextIntoSegments } from '../utils/index.js'
 
 const TTS_VOICE_STORAGE_KEY = 'mimo-tts-voice'
 const TTS_AUTOPLAY_STORAGE_KEY = 'mimo-tts-autoplay'
@@ -149,11 +149,6 @@ let lastGapSegmentIndex = -1
 // 此时不能把 isPlaying 置为 false，否则短段播完后的段间间隙会被误判为“播放结束”
 let synthesizing = false
 
-// 用于 pause/resume：保存当前播放任务的分段数组与配置，并记录被暂停时的段索引
-let currentSegments = []
-let currentPlayOptions = {}
-let resumeSegmentIndex = 0
-
 const getAudioContext = () => {
   if (!audioContext) {
     const AudioCtor = window.AudioContext || window.webkitAudioContext
@@ -271,11 +266,11 @@ const pause = () => {
   if (!isPlaying.value || isPaused.value) return
   isPaused.value = true
   isPlaying.value = false
-  // 暂停时立即中止 SSE 流式合成，避免后台继续消耗 token 并推送字幕/音频
-  if (abortController) {
-    abortController.abort()
-    abortController = null
-  }
+  // 暂停只挂起 AudioContext，不中断流式合成：
+  // 若在此 abort，AbortError 会冒泡到 playSegments 的 catch 并触发 stop()，
+  // 清空恢复状态，导致 resume() 空操作（暂停退化成停止、播放位置丢失）。
+  // 不 abort 时，后台合成继续把已到达的音频调度进队列（单段 ≤200 字，缓冲有界），
+  // resume 后自然续播，无需重取，也不会把当前段重复朗读一遍。
   const ctx = getAudioContext()
   if (ctx.state === 'running') {
     ctx.suspend()
@@ -290,48 +285,14 @@ const resume = async () => {
   if (ctx.state === 'suspended') {
     await ctx.resume()
   }
-  // 从暂停时的段索引继续合成与播放
-  if (!currentSegments.length || resumeSegmentIndex < 0 || resumeSegmentIndex >= currentSegments.length) {
-    finishPlayback()
-    return
-  }
-  const token = ++playbackToken
-  try {
-    const remaining = currentSegments.slice(resumeSegmentIndex)
-    const { onSegmentStart, messageApi, optimizeTextPreview, segmentGapMs } = currentPlayOptions
-    const { scheduledCount } = await streamSegments(remaining, token, {
-      mode: 'play',
-      onSegmentStart,
-      optimizeTextPreview,
-      segmentGapMs,
-      segmentIndexOffset: resumeSegmentIndex
-    })
-    if (token !== playbackToken) return
-    if (scheduledCount === 0) {
-      currentPlayOptions.messageApi?.warning?.('未获取到语音数据，请检查 TTS 配置')
-      finishPlayback()
-      return false
-    }
-    await waitForPlaybackEnd(token)
-    if (token !== playbackToken) return
-    finishPlayback()
-    return true
-  } catch (error) {
-    if (error?.name !== 'AbortError' && token === playbackToken) {
-      currentPlayOptions.messageApi?.error?.(error?.message || '语音播放失败，请稍后重试')
-    }
-    stop()
-    return false
-  }
+  // 暂停时不中断合成，队列里已有该段及后续音频，恢复后自然续播；
+  // playSegments 仍在后台等待队列播空（waitForPlaybackEnd），此处无需重新合成。
 }
 
 const stop = () => {
   playbackToken += 1
   synthesizing = false
   isPaused.value = false
-  currentSegments = []
-  currentPlayOptions = {}
-  resumeSegmentIndex = 0
   if (segmentTimers.length) {
     segmentTimers.forEach(timer => clearTimeout(timer))
     segmentTimers = []
@@ -350,7 +311,7 @@ const stop = () => {
 // 逐段流式合成并消费每个 chunk（播放 / 收集 PCM 共用），返回结果与用量
 // mode: 'play'（调度 Web Audio 播放） | 'collect'（收集 PCM16 供 WAV 导出）
 // segmentGapMs > 0：段与段之间插入停顿（一段播完再下一段）
-const streamSegments = async (segments, token, { mode = 'play', onSegmentStart, optimizeTextPreview, segmentGapMs = 0, segmentIndexOffset = 0 } = {}) => {
+const streamSegments = async (segments, token, { mode = 'play', onSegmentStart, optimizeTextPreview, segmentGapMs = 0 } = {}) => {
   const { model, voice: voiceParam, voiceDesign, optimizeTextPreview: defaultOptimize } = resolveRequestParams()
   const effectiveOptimize = optimizeTextPreview ?? defaultOptimize
   const collected = mode === 'collect' ? [] : null
@@ -382,9 +343,7 @@ const streamSegments = async (segments, token, { mode = 'play', onSegmentStart, 
         collected.push(int16)
         totalSamples += int16.length
       } else {
-        // segmentIndexOffset 保证 resume 后 onSegmentStart 仍返回原数组索引
-        const absoluteIndex = segmentIndex + segmentIndexOffset
-        scheduleChunk(decodePcmChunk(audio.data), { onSegmentStart, segment, segmentIndex: absoluteIndex, token, segmentGapMs })
+        scheduleChunk(decodePcmChunk(audio.data), { onSegmentStart, segment, segmentIndex, token, segmentGapMs })
         scheduledCount += 1
       }
       if (audio.id) {
@@ -400,7 +359,6 @@ const streamSegments = async (segments, token, { mode = 'play', onSegmentStart, 
   try {
     for (const [segmentIndex, segment] of segments.entries()) {
       if (token !== playbackToken) break
-      resumeSegmentIndex = segmentIndex + segmentIndexOffset
 
       abortController = new AbortController()
       const { reader } = await ttsAPI.synthesizeChatStream(segment, voiceParam, {
@@ -457,9 +415,6 @@ const playSegments = async (segments, { playingId, onSegmentStart, messageApi, o
   const validSegments = (segments || []).filter(Boolean)
   if (!validSegments.length) return false
   stop()
-  currentSegments = validSegments
-  currentPlayOptions = { onSegmentStart, messageApi, optimizeTextPreview, segmentGapMs }
-  resumeSegmentIndex = 0
   if (playingId != null) playingMessageNo.value = playingId
   const token = ++playbackToken
   isPlaying.value = true
@@ -468,7 +423,7 @@ const playSegments = async (segments, { playingId, onSegmentStart, messageApi, o
     if (ctx.state === 'suspended') {
       await ctx.resume()
     }
-    const { scheduledCount } = await streamSegments(validSegments, token, { mode: 'play', onSegmentStart, optimizeTextPreview, segmentGapMs, segmentIndexOffset: 0 })
+    const { scheduledCount } = await streamSegments(validSegments, token, { mode: 'play', onSegmentStart, optimizeTextPreview, segmentGapMs })
     if (token !== playbackToken) return false
     // 用“调度过音频块数量”判断是否有声音，而不是当前队列是否为空：
     // 播放进度可能快于合成进度，队列在段间间隙短暂为空是正常现象，不代表没有语音
@@ -490,10 +445,17 @@ const playSegments = async (segments, { playingId, onSegmentStart, messageApi, o
   }
 }
 
+// 提取可朗读正文：与展示逻辑一致，先剥离思考/推理块（<think>…</think> 或 "> 思考" 引用），
+// 再剥离 Markdown / HTML 标记——朗读与导出都不能把思考内容读出来。
+const extractReadableText = content => {
+  const { main } = extractReasoning(String(content || ''))
+  return extractPlainText(main)
+}
+
 const play = async (message, messageApi) => {
   if (!message) return
 
-  const plainText = extractPlainText(message.content)
+  const plainText = extractReadableText(message.content)
   if (!plainText) {
     messageApi?.warning?.('消息内容为空，无法朗读')
     return
@@ -506,7 +468,10 @@ const play = async (message, messageApi) => {
   await playSegments(segments, {
     playingId: message.messageNo || message.id || null,
     messageApi,
-    optimizeTextPreview: false
+    optimizeTextPreview: false,
+    // 段间停顿 400ms（与阅读器一致）：每段播完停一下再继续，朗读节奏更清晰，
+    // 长回复按句/段切分后不会糊成一片。
+    segmentGapMs: 400
   })
 }
 
@@ -567,7 +532,7 @@ const downloadBlob = (blob, filename) => {
 const downloadAudio = async (message, messageApi) => {
   if (!message) return false
 
-  const plainText = extractPlainText(message.content)
+  const plainText = extractReadableText(message.content)
   if (!plainText) {
     messageApi?.warning?.('消息内容为空，无法导出语音')
     return false

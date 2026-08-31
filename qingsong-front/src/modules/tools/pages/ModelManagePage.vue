@@ -102,7 +102,7 @@
             <n-empty description="该来源下暂无模型" />
           </div>
 
-          <div v-else class="model-table-container scrollbar-sm" ref="modelListRef" @scroll="handleModelListScroll">
+          <div v-else class="model-table-container" ref="modelListRef" @scroll="handleModelListScroll">
             <div class="list-progress" aria-hidden="true">
               <span :style="{ width: modelListProgress + '%' }"></span>
             </div>
@@ -1197,6 +1197,25 @@ watch(() => sources.value.length, async () => {
   background: var(--app-component-bg, rgba(255, 255, 255, 0.8));
 }
 
+.model-table-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.model-table-container::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+
+.model-table-container::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 4px;
+  min-height: 40px;
+}
+
+.model-table-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
 /* 数据表格 */
 .model-table {
   width: 100%;
@@ -1365,19 +1384,6 @@ watch(() => sources.value.length, async () => {
   margin-right: 0.5rem;
 }
 
-/* 暗色模式适配 */
-:global(.dark) .model-table tbody tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.03);
-}
-
-:global(.dark) .model-code {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-:global(.dark) .model-table-container {
-  background: var(--app-component-bg, rgba(30, 30, 30, 0.8));
-}
-
 /* 拉取模型结果弹窗 */
 .discover-summary {
   display: flex;
@@ -1477,11 +1483,6 @@ watch(() => sources.value.length, async () => {
   font-weight: 500;
   background: rgba(139, 92, 246, 0.1);
   color: #8b5cf6;
-}
-
-:global(.dark) .endpoint-tag {
-  background: rgba(139, 92, 246, 0.2);
-  color: #c4b5fd;
 }
 
 .discover-test-btn {

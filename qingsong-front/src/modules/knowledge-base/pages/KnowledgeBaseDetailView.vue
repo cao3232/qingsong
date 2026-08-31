@@ -20,6 +20,17 @@
           </div>
         </div>
         <div class="header-actions">
+          <n-button quaternary :disabled="loading" v-if="embeddedCount < total" @click="handleReEmbedPending">
+            <template #icon>
+              <n-icon size="16">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                  <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+              </n-icon>
+            </template>
+            重试待处理
+          </n-button>
           <n-button quaternary @click="handleRefresh">
             <template #icon>
               <n-icon size="16">
@@ -73,7 +84,7 @@
             </svg>
           </span>
           <div class="stat-content">
-            <span class="stat-value">{{ fileList.length }}</span>
+            <span class="stat-value">{{ total }}</span>
             <span class="stat-label">文件总数</span>
           </div>
         </div>
@@ -98,7 +109,7 @@
             </svg>
           </span>
           <div class="stat-content">
-            <span class="stat-value">{{ processedCount }}</span>
+            <span class="stat-value">{{ embeddedCount }}</span>
             <span class="stat-label">已处理</span>
           </div>
         </div>
@@ -166,6 +177,16 @@
               {{ getStatusText(file.status) }}
             </n-tag>
             <div class="file-actions">
+              <n-button v-if="file.status === 'pending'" quaternary circle size="small" type="info" @click="handleReEmbedFile(file)">
+                <template #icon>
+                  <n-icon size="16">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                      <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                  </n-icon>
+                </template>
+              </n-button>
               <n-button quaternary circle size="small" @click="handleDownload(file)">
                 <template #icon>
                   <n-icon size="16">
@@ -214,13 +235,23 @@
         </n-button>
       </template>
     </n-empty>
+
+    <div v-if="total > 0" class="pagination-bar">
+      <span class="pagination-total">共 {{ total }} 个文件</span>
+      <n-pagination
+        v-model:page="pageNum"
+        :page-size="pageSize"
+        :item-count="total"
+        @update:page="loadDocuments"
+      />
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NButton, NUpload, NUploadDragger, NInput, NSelect, NTag, NEmpty, NIcon, NPopconfirm, NSpin, useMessage } from 'naive-ui'
+import { NButton, NUpload, NUploadDragger, NInput, NSelect, NTag, NEmpty, NIcon, NPopconfirm, NPagination, NSpin, useMessage } from 'naive-ui'
 import { knowledgeAPI, documentAPI } from '@/modules/knowledge-base/services'
 
 const route = useRoute()
@@ -232,6 +263,11 @@ const statusFilter = ref(null)
 const typeFilter = ref(null)
 const loading = ref(false)
 const uploadFileList = ref([]) // 手动控制上传组件的文件列表
+const pageNum = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+const totalSize = ref(0)
+const embeddedCount = ref(0)
 
 const knowledgeBase = ref(null)
 const fileList = ref([])
@@ -276,53 +312,34 @@ const fetchKnowledgeBase = async () => {
   }
 }
 
-// 获取文档列表
-const fetchDocuments = async () => {
-  const knowledgeId = route.params.id
-  loading.value = true
-  try {
-    const data = await documentAPI.getDocuments(knowledgeId)
-    fileList.value = data.map(doc => ({
-      id: doc.id,
-      knowledgeId: doc.knowledgeId,
-      name: doc.fileName,
-      path: doc.path,
-      sourceId: doc.sourceId,
-      type: getFileType(doc.fileName),
-      embedding: doc.embedding,
-      status: doc.embedding ? 'processed' : 'pending',
-      uploadTime: formatDate(doc.createDate)
-    }))
-  } catch (error) {
-    message.error('获取文档列表失败')
-  } finally {
-    loading.value = false
-  }
-}
+// 获取文档列表（分页）
+const mapDocument = (doc) => ({
+  id: doc.id,
+  knowledgeId: doc.knowledgeId,
+  name: doc.fileName,
+  path: doc.path,
+  sourceId: doc.sourceId,
+  type: getFileType(doc.fileName),
+  embedding: doc.embedding,
+  status: doc.embedding ? 'processed' : 'pending',
+  size: doc.size || 0,
+  uploadTime: formatDate(doc.createDate)
+})
 
-// 搜索文档
-const searchDocuments = async () => {
+const loadDocuments = async () => {
   const knowledgeId = route.params.id
-  if (!searchKeyword.value.trim()) {
-    fetchDocuments()
-    return
-  }
   loading.value = true
   try {
-    const data = await documentAPI.searchDocuments(knowledgeId, searchKeyword.value.trim())
-    fileList.value = data.map(doc => ({
-      id: doc.id,
-      knowledgeId: doc.knowledgeId,
-      name: doc.fileName,
-      path: doc.path,
-      sourceId: doc.sourceId,
-      type: getFileType(doc.fileName),
-      embedding: doc.embedding,
-      status: doc.embedding ? 'processed' : 'pending',
-      uploadTime: formatDate(doc.createDate)
-    }))
+    const keyword = searchKeyword.value.trim()
+    const data = keyword
+      ? await documentAPI.searchDocuments(knowledgeId, keyword, pageNum.value, pageSize.value, statusFilter.value, typeFilter.value)
+      : await documentAPI.getDocuments(knowledgeId, pageNum.value, pageSize.value, statusFilter.value, typeFilter.value)
+    fileList.value = (data.records || []).map(mapDocument)
+    total.value = data.total || 0
+    totalSize.value = data.totalSize || 0
+    embeddedCount.value = data.embeddedCount || 0
   } catch (error) {
-    message.error('搜索失败')
+    message.error(searchKeyword.value.trim() ? '搜索失败' : '获取文档列表失败')
   } finally {
     loading.value = false
   }
@@ -332,7 +349,16 @@ const searchDocuments = async () => {
 let searchTimer = null
 watch(searchKeyword, () => {
   clearTimeout(searchTimer)
-  searchTimer = setTimeout(searchDocuments, 300)
+  searchTimer = setTimeout(() => {
+    pageNum.value = 1
+    loadDocuments()
+  }, 300)
+})
+
+// 筛选变化时回到第一页并重新加载（服务端过滤，保证统计与列表口径一致）
+watch([statusFilter, typeFilter], () => {
+  pageNum.value = 1
+  loadDocuments()
 })
 
 // 格式化日期
@@ -348,14 +374,6 @@ const formatDate = (dateStr) => {
   }).replace(/\//g, '-')
 }
 
-const totalSize = computed(() => {
-  return 0 // API 未返回文件大小，暂不计算
-})
-
-const processedCount = computed(() => {
-  return fileList.value.filter(f => f.embedding).length
-})
-
 const filteredFiles = computed(() => {
   return fileList.value.filter(file => {
     const matchStatus = statusFilter.value === null || statusFilter.value === undefined || file.embedding === statusFilter.value
@@ -365,6 +383,8 @@ const filteredFiles = computed(() => {
 })
 
 const formatSize = (bytes) => {
+  if (bytes === null || bytes === undefined || Number.isNaN(Number(bytes))) return '0 B'
+  bytes = Number(bytes)
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
   return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
@@ -406,19 +426,46 @@ const goBack = () => {
 }
 
 const handleRefresh = async () => {
-  await fetchDocuments()
+  await loadDocuments()
   message.success('已刷新')
+}
+
+const handleReEmbedFile = async (file) => {
+  try {
+    const ok = await documentAPI.reEmbedDocument(file.id)
+    if (ok) {
+      message.success(`「${file.name}」重新嵌入成功`)
+    } else {
+      message.error(`「${file.name}」重新嵌入失败`)
+    }
+  } catch (error) {
+    message.error(`重新嵌入失败: ${error.message}`)
+  }
+  await loadDocuments()
+}
+
+const handleReEmbedPending = async () => {
+  loading.value = true
+  try {
+    const count = await documentAPI.reEmbedPending(route.params.id)
+    message.success(`已重新嵌入 ${count} 个文件`)
+  } catch (error) {
+    message.error(`重试失败: ${error.message}`)
+  } finally {
+    loading.value = false
+  }
+  await loadDocuments()
 }
 
 // 上传中的文件ID集合，防止重复上传
 const uploadingFiles = ref(new Set())
 
 const handleUpload = async ({ file }) => {
-  // 防止重复上传
-  if (uploadingFiles.value.has(file.name)) {
+  // 防止重复上传（按文件唯一 id 去重，避免同名文件互吞）
+  if (uploadingFiles.value.has(file.id)) {
     return
   }
-  uploadingFiles.value.add(file.name)
+  uploadingFiles.value.add(file.id)
   
   const knowledgeId = route.params.id
   const fileType = file.name.split('.').pop().toLowerCase()
@@ -452,10 +499,11 @@ const handleUpload = async ({ file }) => {
   
   try {
     const result = await documentAPI.uploadFile(knowledgeId, file.file)
-    
+
     if (result) {
-      // 上传成功，刷新列表获取最新数据
-      await fetchDocuments()
+      // 上传成功，回到第一页刷新列表获取最新数据
+      pageNum.value = 1
+      await loadDocuments()
       message.success(`文件 "${file.name}" 上传成功`)
     } else {
       // 移除失败的文件
@@ -466,7 +514,7 @@ const handleUpload = async ({ file }) => {
     fileList.value = fileList.value.filter(f => f.id !== tempId)
     message.error(`上传失败: ${error.message}`)
   } finally {
-    uploadingFiles.value.delete(file.name)
+    uploadingFiles.value.delete(file.id)
     // 清空上传组件的文件列表，防止累加
     uploadFileList.value = []
   }
@@ -493,7 +541,8 @@ const handleDownload = async (file) => {
 const handleDeleteFile = async (file) => {
   const result = await documentAPI.deleteDocument(file.knowledgeId, file.id)
   if (result) {
-    fileList.value = fileList.value.filter(f => f.id !== file.id)
+    // 删除后刷新，同步总大小/已处理等聚合统计
+    await loadDocuments()
     message.success('已删除')
   } else {
     message.error('删除失败')
@@ -510,14 +559,15 @@ const triggerUpload = () => {
 // 监听路由参数变化，重新加载数据
 watch(() => route.params.id, (newId, oldId) => {
   if (newId && newId !== oldId) {
+    pageNum.value = 1
     fetchKnowledgeBase()
-    fetchDocuments()
+    loadDocuments()
   }
 })
 
 onMounted(() => {
   fetchKnowledgeBase()
-  fetchDocuments()
+  loadDocuments()
 })
 </script>
 
@@ -826,6 +876,20 @@ onMounted(() => {
 .empty-state {
   margin-top: 60px;
   padding: 40px 0;
+}
+
+/* 分页栏 */
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.pagination-total {
+  font-size: 13px;
+  color: var(--app-text-secondary, #6b7280);
 }
 
 /* 响应式 */

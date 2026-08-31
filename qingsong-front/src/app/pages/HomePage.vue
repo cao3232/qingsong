@@ -1,65 +1,20 @@
 <template>
   <div class="home-container">
     <div class="apps-grid">
-      <!-- AI 对话 -->
-      <div class="app-card" @click="navigateToApp('chat')">
-        <div class="app-icon chat-icon">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path
-              d="M7.12 18.36L4 20l1.08-3.46A7.77 7.77 0 013.5 12c0-4.14 3.8-7.5 8.5-7.5s8.5 3.36 8.5 7.5-3.8 7.5-8.5 7.5c-1.28 0-2.5-.25-3.62-.7-.42-.16-.88-.14-1.26.06z"
-              fill="currentColor" opacity="0.22" />
-            <path
-              d="M7.12 18.36L4 20l1.08-3.46A7.77 7.77 0 013.5 12c0-4.14 3.8-7.5 8.5-7.5s8.5 3.36 8.5 7.5-3.8 7.5-8.5 7.5c-1.28 0-2.5-.25-3.62-.7-.42-.16-.88-.14-1.26.06z"
-              stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M8.75 10.5h6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-            <path d="M8.75 13.5h4.25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-            <circle cx="15.85" cy="13.5" r="1.15" fill="currentColor" />
-          </svg>
+      <div
+        v-for="item in homeMenuItems"
+        :key="item.key"
+        class="app-card"
+        @click="navigateToApp(item)"
+      >
+        <div
+          class="app-icon"
+          :style="{ background: item.icon.gradient, color: item.icon.color }"
+        >
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" v-html="item.icon.svg"></svg>
         </div>
-        <h3 class="app-title">AI 对话</h3>
-        <p class="app-description">与AI助手进行智能对话</p>
-      </div>
-
-      <!-- PDF 阅读 -->
-      <div class="app-card" @click="navigateToApp('pdf-reader')">
-        <div class="app-icon pdf-reader-icon">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M6 3h9l3 3v15H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-            <path d="M14 3v4h4M8 12h8M8 15h6M8 18h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-          </svg>
-        </div>
-        <h3 class="app-title">PDF 阅读</h3>
-        <p class="app-description">阅读 PDF 书籍并使用 TTS 朗读</p>
-      </div>
-
-      <!-- 系统配置 -->
-      <div class="app-card" @click="navigateToApp('config')">
-        <div class="app-icon config-icon">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round" />
-            <path
-              d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        </div>
-        <h3 class="app-title">系统配置</h3>
-        <p class="app-description">管理API密钥和模型设置</p>
-      </div>
-
-      <!-- 知识库管理 -->
-      <div class="app-card" @click="navigateToApp('knowledge-base')">
-        <div class="app-icon knowledge-base-icon">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M4 4h12a4 4 0 0 1 4 4v12H8a4 4 0 0 0-4 4V4z" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M8 4v16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M12 8h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M12 12h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        </div>
-        <h3 class="app-title">知识库管理</h3>
-        <p class="app-description">创建与维护知识库,支持对话 RAG 检索</p>
+        <h3 class="app-title">{{ item.title }}</h3>
+        <p class="app-description">{{ item.description }}</p>
       </div>
     </div>
   </div>
@@ -67,39 +22,30 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
+// 菜单数据单一真源：与 scripts/contrast-audit.mjs 共用，改动后需跑 npm run test:contrast
+import { homeMenuItems } from './homeMenu'
 
 const router = useRouter()
 
-const navigateToApp = (appType) => {
-  switch (appType) {
-    case 'chat':
-      router.push('/chat')
-      break
-    case 'pdf-reader':
-      router.push('/pdf-reader')
-      break
-    case 'config':
-      router.push('/config')
-      break
-    case 'knowledge-base':
-      router.push('/knowledge-base')
-      break
-    default:
-      alert('该功能正在开发中，敬请期待！')
-  }
+const navigateToApp = (item) => {
+  router.push(item.path)
 }
 </script>
 
 <style scoped>
 .home-container {
   min-height: 100vh;
+  /* 使用视口高度，避免高度计算问题 */
   background: var(--app-background);
+  /* 使用 themeStore 定义的背景 */
   padding: 3rem 2rem;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: background 0.3s ease;
+  /* 添加过渡效果 */
   overflow-y: auto;
+  /* 允许内容溢出时滚动 */
 }
 
 .apps-grid {
@@ -112,20 +58,30 @@ const navigateToApp = (appType) => {
 
 .app-card {
   background: rgba(var(--app-panel-background-rgb, 255, 255, 255), 0.95);
+  /* 面板背景色变量（浅色白/深色黑由主题智能匹配），rgba() 内联后备值 */
   border-radius: 20px;
   padding: 2rem;
   text-align: center;
   cursor: pointer;
   transition: all 0.3s ease;
   border: 1px solid rgba(var(--app-panel-background-rgb, 255, 255, 255), 0.2);
+  /* 边框颜色也使用RGB变量 */
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  /* 更柔和的阴影 */
   height: fit-content;
 }
 
 .app-card:hover {
   transform: translateY(-8px) scale(1.03);
+  /* 更明显的上浮和放大 */
   box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
-  background: linear-gradient(135deg, #e0f7fa 0%, #e8f5e9 100%);
+  /* 更明显的阴影 */
+  /* 主题感知悬停态：在面板合成色上叠加 --app-card-hover-tint（theme.js 按明暗分档的白色提亮层），
+     替换原先写死的浅色渐变——深色主题下「浅底 + 浅字」会导致对比度失效。
+     该叠层口径已纳入 scripts/contrast-audit.mjs 硬门禁。 */
+  background:
+    linear-gradient(var(--app-card-hover-tint, rgba(255, 255, 255, 0.45)), var(--app-card-hover-tint, rgba(255, 255, 255, 0.45))),
+    rgba(var(--app-panel-background-rgb, 255, 255, 255), 0.95);
 }
 
 .app-icon {
@@ -137,6 +93,7 @@ const navigateToApp = (appType) => {
   align-items: center;
   justify-content: center;
   transition: all 0.3s ease;
+  /* 背景渐变与图标色由 homeMenu.js 中各菜单项的 icon.gradient / icon.color 驱动 */
 }
 
 .app-icon svg {
@@ -144,45 +101,29 @@ const navigateToApp = (appType) => {
   height: 40px;
 }
 
-.chat-icon {
-  background: linear-gradient(135deg, #0f9bff 0%, #44e2c4 100%);
-  color: white;
-}
-
-.pdf-reader-icon {
-  background: linear-gradient(135deg, #0f766e 0%, #38b2ac 100%);
-  color: white;
-}
-
-.config-icon {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: white;
-}
-
-.knowledge-base-icon {
-  background: linear-gradient(135deg, #34d399 0%, #0ea5e9 100%);
-  color: white;
-}
-
-.app-card:not(.coming-soon):hover .app-icon {
+.app-card:hover .app-icon {
   transform: scale(1.1) rotate(5deg);
   filter: brightness(1.1);
+  /* 增加亮度 */
 }
 
 .app-title {
   font-size: 1.5rem;
   font-weight: 600;
   color: var(--app-text-primary, #1a202c);
+  /* 跟随主题文字色，保证与页面背景对比度 */
   margin-bottom: 0.75rem;
 }
 
 .app-description {
   font-size: 1rem;
   color: var(--app-text-secondary, #4a5568);
+  /* 跟随主题次级文字色，保证与面板对比度 */
   line-height: 1.6;
   margin: 0;
 }
 
+/* 响应式设计 */
 @media (max-width: 768px) {
   .home-container {
     padding: 2rem 1.5rem;

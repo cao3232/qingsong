@@ -7,7 +7,7 @@
     :bordered="false"
     @update:show="handleUpdateShow"
   >
-    <div class="chat-review scrollbar-md">
+    <div class="chat-review">
       <div class="review-header">
         <div class="review-date-area">
           <button class="review-nav-btn" type="button" title="前一天" :disabled="loading"
@@ -327,6 +327,20 @@ const handleUpdateShow = (visible) => {
   max-height: 74vh;
   overflow-y: auto;
   font-family: var(--chat-font-family, "MS Sans Serif", "Segoe UI", Tahoma, sans-serif);
+
+  &::-webkit-scrollbar {
+    width: var(--scrollbar-size-sm);
+    height: var(--scrollbar-size-sm);
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 2px;
+  }
 }
 
 .review-header {

@@ -78,4 +78,41 @@ public interface AiChatMessageMapper extends BaseMapper<AiChatMessage> {
             """)
     List<Map<String, Object>> selectSessionRecentMessages(@Param("sessionNo") String sessionNo,
                                                           @Param("limit") int limit);
+
+    /**
+     * 消息内容搜索（LIKE 模糊匹配，ESCAPE '!'）。
+     * snippet 为关键词前 40 字起的 120 字片段（SQL 侧截取，避免整条 LONGTEXT 出库）；
+     * hitIndex 为关键词 1 基起始位置；contentLength 为全文字符数，二者供上层判断是否补省略号。
+     */
+    @Select("""
+            <script>
+            SELECT s.session_no AS sessionNo,
+                   s.title AS sessionTitle,
+                   m.message_no AS messageNo,
+                   m.message_type AS messageType,
+                   SUBSTRING(m.content, GREATEST(1, LOCATE(#{keyword}, m.content) - 40), 120) AS snippet,
+                   LOCATE(#{keyword}, m.content) AS hitIndex,
+                   CHAR_LENGTH(m.content) AS contentLength,
+                   m.created_at AS createdAt
+            FROM ai_chat_message m
+            INNER JOIN ai_chat_session s ON m.session_id = s.id
+            WHERE s.deleted = 0 AND m.deleted = 0
+              AND s.biz_type = #{bizType} AND s.role_code = #{roleCode}
+              AND m.content LIKE CONCAT('%', #{keyword}, '%') ESCAPE '!'
+            <if test="start != null">
+              AND m.created_at &gt;= #{start}
+            </if>
+            <if test="end != null">
+              AND m.created_at &lt; #{end}
+            </if>
+            ORDER BY m.created_at DESC
+            LIMIT #{limit}
+            </script>
+            """)
+    List<Map<String, Object>> searchMessages(@Param("bizType") String bizType,
+                                             @Param("roleCode") String roleCode,
+                                             @Param("keyword") String keyword,
+                                             @Param("start") LocalDateTime start,
+                                             @Param("end") LocalDateTime end,
+                                             @Param("limit") int limit);
 }

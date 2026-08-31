@@ -10,7 +10,7 @@
     <ChatWorkspaceHeader :active-model-id="activeModelId" :active-source-id="activeSourceId"
       :auto-send-to-feishu="chatStore.autoSendToFeishu" :collapse-assistant-messages="collapseAssistantMessages"
       :conversation-name-input-ref="conversationNameInputRef" :current-chat-id="props.currentChatId"
-      :current-chat-name="props.currentChatName" :current-messages-length="props.currentMessages.length"
+      :current-messages-length="props.currentMessages.length"
       :editing-conversation-name="editingConversationName" :is-editing-conversation-name="isEditingConversationName"
       :is-role-badge-hovered="isRoleBadgeHovered" :is-role-name-copied="isRoleNameCopied" :is-streaming="isStreaming"
       :is-switching-model="isSwitchingModel"       :source-options="sourceOptions" :model-options="modelOptions"
@@ -38,7 +38,7 @@
       @update:showRoleDescriptionModal="showRoleDescriptionModal = $event" />
 
     <div class="messages-area">
-      <div class="messages scrollbar-lg" ref="messagesRef">
+      <div class="messages" ref="messagesRef">
         <div v-if="virtualPaddingStart > 0" class="message-list-spacer"
           :style="{ height: `${virtualPaddingStart}px` }"></div>
         <div v-for="virtualItem in virtualItems" :key="virtualItem.key" class="virtual-message-slot"
@@ -96,7 +96,8 @@ const chatBackgroundType = computed(() => themeStore.config.chatBackgroundType)
 const chatBackgroundImage = computed(() => themeStore.config.chatBackgroundImage)
 const chatBackgroundImageOpacity = computed(() => themeStore.config.chatBackgroundImageOpacity ?? 0.5)
 const chatBackgroundColor = computed(() => {
-  if (chatBackgroundType.value === 'theme') return themeStore.config.pageBackground
+  // 跟随主题时用生效背景（皮肤固定背景优先，否则用户自选页面背景）
+  if (chatBackgroundType.value === 'theme') return themeStore.effectivePageBackground
   return themeStore.config.chatBackground
 })
 const workspaceOptions = {
@@ -128,10 +129,6 @@ const props = defineProps({
   currentChatName: {
     type: String,
     default: ''
-  },
-  chatHistory: {
-    type: Array,
-    default: () => []
   },
   switchConversation: {
     type: Function,
@@ -220,6 +217,7 @@ const {
   removeAttachedFile,
   roleDescription,
   roleStatsInfo,
+  roleStatsLoading,
   saveConversationName,
   scrollToBottom,
   selectedLanguage,
@@ -301,6 +299,20 @@ const {
     inset -2px -2px 0 var(--chat-inset-light, #ffffff);
   border-radius: var(--chat-radius, 0);
   padding: 16px clamp(14px, 3vw, 30px) 20px;
+}
+
+.messages::-webkit-scrollbar {
+  width: var(--scrollbar-size-sm);
+  height: var(--scrollbar-size-sm);
+}
+
+.messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.messages::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 2px;
 }
 
 .message-list-spacer {

@@ -48,6 +48,7 @@ public class ObservingToolCallback implements ToolCallback {
     public String call(String toolInput) {
         String toolCallId = UUID.randomUUID().toString();
         String name = delegate.getToolDefinition().name();
+        log.info("工具调用开始, toolCallId={}, name={}, args={}", toolCallId, name, toolInput);
         eventBus.emitToolCall(toolCallId, name, truncate(toolInput));
         long startedAt = System.nanoTime();
         try {

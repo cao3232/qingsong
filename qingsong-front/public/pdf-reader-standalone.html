@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Reader Standalone</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #eef2f6;
+      color: #1e293b;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      background: #17212b;
+      color: #fff;
+      flex-wrap: wrap;
+    }
+    header h1 { font-size: 16px; margin: 0; }
+    .upload {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .upload input[type="file"] { color: #fff; }
+    main { padding: 16px; }
+    .viewer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .toolbar button, .tts button {
+      padding: 6px 12px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      cursor: pointer;
+    }
+    .toolbar button:disabled { opacity: .5; cursor: not-allowed; }
+    .page-info { min-width: 80px; text-align: center; font-size: 14px; }
+    canvas { max-width: 100%; background: #fff; box-shadow: 0 4px 16px rgba(15,23,42,.16); }
+    .tts {
+      width: 100%;
+      max-width: 720px;
+      margin: 16px auto 0;
+      padding: 12px;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+    }
+    .tts label { display: block; margin-bottom: 8px; font-size: 13px; }
+    .tts input {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid #cbd5e1;
+      margin-bottom: 10px;
+    }
+    .tts .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    #status { min-height: 20px; font-size: 13px; color: #64748b; }
+    #current-text {
+      margin-top: 10px;
+      padding: 10px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      font-size: 13px;
+      line-height: 1.6;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>PDF Reader Standalone</h1>
+    <div class="upload">
+      <label for="file">选择 PDF</label>
+      <input id="file" type="file" accept=".pdf,application/pdf" />
+    </div>
+  </header>
+
+  <main>
+    <div class="viewer">
+      <div class="toolbar">
+        <button id="prev" disabled>上一页</button>
+        <span class="page-info" id="page-info">- / -</span>
+        <button id="next" disabled>下一页</button>
+        <button id="zoom-out" disabled>−</button>
+        <span id="scale">100%</span>
+        <button id="zoom-in" disabled>+</button>
+      </div>
+      <canvas id="canvas" aria-label="PDF 页面"></canvas>
+    </div>
+
+    <section class="tts">
+      <label>MiMo API Base URL</label>
+      <input id="api-base" type="text" value="" placeholder="例如：https://api.mimo.com" />
+      <label>MiMo API Key</label>
+      <input id="api-key" type="text" placeholder="粘贴 MiMo API Key" />
+      <div class="row">
+        <button id="play-page" disabled>朗读本页</button>
+        <button id="pause" disabled>暂停</button>
+        <button id="stop" disabled>停止</button>
+      </div>
+      <div id="status">请先选择 PDF 文件</div>
+      <div id="current-text" class="hidden"></div>
+    </section>
+  </main>
+
+  <script type="module">
+    // 使用 pdfjs-dist v4 的 ESM CDN 构建
+    import * as pdfjsLib from 'https://unpkg.com/pdfjs-dist@4.10.38/build/pdf.mjs'
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@4.10.38/build/pdf.worker.mjs'
+
+    const $ = id => document.getElementById(id)
+    const fileInput = $('file')
+    const canvas = $('canvas')
+    const ctx = canvas.getContext('2d')
+    const pageInfo = $('page-info')
+    const scaleEl = $('scale')
+    const statusEl = $('status')
+    const currentTextEl = $('current-text')
+
+    let pdfDoc = null
+    let pageNumber = 1
+    let pageCount = 0
+    let scale = 1.1
+    let pageText = ''
+    let abortController = null
+    let audioCtx = null
+    let activeSources = []
+    let nextStartTime = 0
+    let pendingCount = 0
+    let isPlaying = false
+    let isPaused = false
+
+    const SAMPLE_RATE = 24000
+
+    function setStatus(msg) { statusEl.textContent = msg }
+
+    function decodeBase64Pcm(base64) {
+      const binary = atob(base64)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+      const count = Math.floor(bytes.length / 2)
+      const samples = new Float32Array(count)
+      const view = new DataView(bytes.buffer)
+      for (let i = 0; i < count; i++) samples[i] = view.getInt16(i * 2, true) / 32768.0
+      return samples
+    }
+
+    function getCtx() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE })
+      return audioCtx
+    }
+
+    function stopSources() {
+      activeSources.forEach(s => { try { s.onended = null; s.stop() } catch {} })
+      activeSources = []
+      pendingCount = 0
+      nextStartTime = 0
+    }
+
+    function schedule(samples) {
+      if (!samples || !samples.length) return
+      const ctx = getCtx()
+      const buffer = ctx.createBuffer(1, samples.length, SAMPLE_RATE)
+      buffer.copyToChannel(samples, 0)
+      const source = ctx.createBufferSource()
+      source.buffer = buffer
+      source.connect(ctx.destination)
+      const startAt = Math.max(nextStartTime, ctx.currentTime + 0.05)
+      source.start(startAt)
+      nextStartTime = startAt + buffer.duration
+      pendingCount++
+      activeSources.push(source)
+      source.onended = () => {
+        pendingCount--
+        const idx = activeSources.indexOf(source)
+        if (idx !== -1) activeSources.splice(idx, 1)
+        if (pendingCount <= 0) {
+          isPlaying = false
+          updateButtons()
+        }
+      }
+    }
+
+    function stopAll() {
+      if (abortController) { abortController.abort(); abortController = null }
+      const ctx = getCtx()
+      if (ctx.state === 'running') ctx.suspend()
+      stopSources()
+      isPlaying = false
+      isPaused = false
+      updateButtons()
+      setStatus('已停止')
+    }
+
+    function pauseAll() {
+      if (!isPlaying || isPaused) return
+      const ctx = getCtx()
+      if (ctx.state === 'running') ctx.suspend()
+      isPaused = true
+      isPlaying = false
+      updateButtons()
+      setStatus('已暂停')
+    }
+
+    async function resumeAll() {
+      if (!isPaused) return
+      const ctx = getCtx()
+      if (ctx.state === 'suspended') await ctx.resume()
+      isPaused = false
+      isPlaying = true
+      updateButtons()
+      setStatus('继续朗读')
+    }
+
+    function splitSentences(text, limit = 150) {
+      const enders = '。！？!?；;…'
+      const sentences = []
+      let buf = ''
+      for (const ch of text) {
+        buf += ch
+        if (enders.includes(ch)) {
+          if (buf.trim()) sentences.push(buf.trim())
+          buf = ''
+        }
+      }
+      if (buf.trim()) sentences.push(buf.trim())
+      const result = []
+      for (const s of sentences) {
+        if (s.length <= limit) { result.push(s); continue }
+        for (let i = 0; i < s.length; i += limit) result.push(s.slice(i, i + limit))
+      }
+      return result
+    }
+
+    async function speak(text) {
+      const apiBase = $('api-base').value.trim()
+      const apiKey = $('api-key').value.trim()
+      if (!apiBase || !apiKey) {
+        setStatus('请先填写 API Base URL 和 API Key')
+        return
+      }
+      if (!text.trim()) { setStatus('当前页没有可朗读文本'); return }
+
+      if (isPlaying || isPaused) stopAll()
+      const segments = splitSentences(text)
+      isPlaying = true
+      isPaused = false
+      updateButtons()
+      currentTextEl.classList.remove('hidden')
+      setStatus('正在合成语音…')
+
+      const ctx = getCtx()
+      if (ctx.state === 'suspended') await ctx.resume()
+
+      abortController = new AbortController()
+      let scheduled = false
+
+      for (let i = 0; i < segments.length; i++) {
+        const segment = segments[i]
+        currentTextEl.textContent = segment
+        try {
+          const response = await fetch(`${apiBase}/chat/completions`, {
+            method: 'POST',
+            headers: { 'api-key': apiKey, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'mimo-v2.5-tts',
+              messages: [{ role: 'assistant', content: segment }],
+              audio: { format: 'pcm16', voice: 'mimo_default' },
+              stream: true
+            }),
+            signal: abortController.signal
+          })
+          if (!response.ok) throw new Error('TTS 请求失败')
+          const reader = response.body.getReader()
+          const decoder = new TextDecoder('utf-8')
+          let buffer = ''
+          while (true) {
+            const { value, done } = await reader.read()
+            if (done) break
+            if (!isPlaying && !isPaused) break
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || ''
+            for (const line of lines) {
+              const trimmed = line.trim()
+              if (!trimmed.startsWith('data:')) continue
+              const data = trimmed.slice(5).trim()
+              if (data === '[DONE]') continue
+              try {
+                const payload = JSON.parse(data)
+                const audio = payload?.choices?.[0]?.delta?.audio
+                if (audio?.data) {
+                  schedule(decodeBase64Pcm(audio.data))
+                  scheduled = true
+                }
+              } catch {}
+            }
+          }
+        } catch (err) {
+          if (err.name !== 'AbortError') {
+            setStatus(`朗读失败：${err.message}`)
+            stopAll()
+            return
+          }
+        }
+      }
+
+      if (!scheduled) {
+        setStatus('未获取到语音数据')
+        stopAll()
+      } else {
+        setStatus('朗读中…')
+      }
+    }
+
+    function updateButtons() {
+      $('prev').disabled = !pdfDoc || pageNumber <= 1
+      $('next').disabled = !pdfDoc || pageNumber >= pageCount
+      $('zoom-in').disabled = !pdfDoc || scale >= 2
+      $('zoom-out').disabled = !pdfDoc || scale <= 0.5
+      $('play-page').disabled = !pdfDoc
+      $('pause').disabled = !isPlaying && !isPaused
+      $('stop').disabled = !isPlaying && !isPaused
+      $('pause').textContent = isPaused ? '继续' : '暂停'
+    }
+
+    async function renderPage() {
+      if (!pdfDoc) return
+      const page = await pdfDoc.getPage(pageNumber)
+      const viewport = page.getViewport({ scale })
+      const outputScale = window.devicePixelRatio || 1
+      canvas.width = Math.floor(viewport.width * outputScale)
+      canvas.height = Math.floor(viewport.height * outputScale)
+      canvas.style.width = `${Math.floor(viewport.width)}px`
+      canvas.style.height = `${Math.floor(viewport.height)}px`
+      await page.render({ canvasContext: ctx, viewport, transform: outputScale === 1 ? null : [outputScale, 0, 0, outputScale, 0, 0] }).promise
+      const textContent = await page.getTextContent()
+      pageText = textContent.items.map(it => it.str).join('').replace(/\s+/g, ' ').trim()
+      pageInfo.textContent = `${pageNumber} / ${pageCount}`
+      scaleEl.textContent = `${Math.round(scale * 100)}%`
+      updateButtons()
+    }
+
+    async function loadFile(file) {
+      if (!file || file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) return
+      stopAll()
+      const data = new Uint8Array(await file.arrayBuffer())
+      pdfDoc = await pdfjsLib.getDocument({ data }).promise
+      pageCount = pdfDoc.numPages
+      pageNumber = 1
+      scale = 1.1
+      await renderPage()
+      setStatus('PDF 已加载，可点击“朗读本页”')
+    }
+
+    fileInput.addEventListener('change', e => loadFile(e.target.files?.[0]))
+    $('prev').addEventListener('click', async () => { if (pageNumber > 1) { pageNumber--; await renderPage() } })
+    $('next').addEventListener('click', async () => { if (pageNumber < pageCount) { pageNumber++; await renderPage() } })
+    $('zoom-in').addEventListener('click', () => { if (scale < 2) { scale = Math.round((scale + 0.1) * 100) / 100; renderPage() } })
+    $('zoom-out').addEventListener('click', () => { if (scale > 0.5) { scale = Math.round((scale - 0.1) * 100) / 100; renderPage() } })
+    $('play-page').addEventListener('click', () => speak(pageText))
+    $('pause').addEventListener('click', () => isPaused ? resumeAll() : pauseAll())
+    $('stop').addEventListener('click', stopAll)
+  </script>
+</body>
+</html>

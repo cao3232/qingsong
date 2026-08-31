@@ -5,7 +5,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
-import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.metadata.Usage;
@@ -74,7 +73,7 @@ public class ChatService {
             List<Advisor> advisors = new ArrayList<>();
             if (!CollectionUtils.isEmpty(request.getKownledgeId())) {
                 // 知识库 RAG：构造向量检索 advisor 注入上下文
-                QuestionAnswerAdvisor build = ragContextProvider.buildQuestionAnswerAdvisor(
+                Advisor build = ragContextProvider.buildQuestionAnswerAdvisor(
                         request.getKownledgeId(), request.getUserPrompt());
                 prefixMessage += "RAG: " + request.getUserPrompt() + "\n";
                 advisors.add(build);

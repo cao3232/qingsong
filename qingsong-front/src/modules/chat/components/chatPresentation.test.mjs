@@ -55,6 +55,25 @@ test('分享卡片独立约束克隆内容和表情图片', () => {
   assert.match(messageShareModalSource, /\.share-card-body[\s\S]*?pointer-events:\s*none;/)
 })
 
+test('分享卡片内 Mermaid 整幅铺开不滚动', () => {
+  assert.match(
+    messageShareModalSource,
+    /:deep\(\.mermaid-block \.mermaid-render\)\s*\{[\s\S]*?overflow:\s*visible\s*!important;/
+  )
+  assert.match(
+    messageShareModalSource,
+    /:deep\(\.mermaid-block \.mermaid-render\)\s*\{[\s\S]*?max-height:\s*none\s*!important;/
+  )
+  assert.match(
+    messageShareModalSource,
+    /:deep\(\.mermaid-block \.mermaid-render svg\)\s*\{[\s\S]*?width:\s*100%\s*!important;/
+  )
+  assert.match(
+    messageShareModalSource,
+    /:deep\(\.mermaid-block \.mermaid-render svg\)\s*\{[\s\S]*?height:\s*auto\s*!important;/
+  )
+})
+
 test('用户消息分享卡片不标记为 AI 生成内容', () => {
   assert.match(messageShareModalSource, /isUser\s*\?\s*['"]用户分享内容['"]\s*:\s*['"]内容由 AI 生成 · 请注意甄别['"]/)
 })

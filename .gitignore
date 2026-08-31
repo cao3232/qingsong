@@ -26,7 +26,10 @@ secrets.*.yml
 .codeverse/
 
 # ---------- 第三方运行期静态资源 ----------
-public/webviewer/
+qingsong-front/public/webviewer/
+# pdfjs cmaps / standard_fonts 运行期资源（由 scripts/copy-pdfjs-assets.cjs 生成）
+qingsong-front/public/pdfjs-cmaps/
+qingsong-front/public/pdfjs-standard-fonts/
 
 # ---------- 数据库备份数据(只留 schema,不留真实数据) ----------
 # 仅忽略备份脚本的导出产物 data-backup.sql;seed-data.sql 是部署种子数据,必须跟踪提交

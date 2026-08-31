@@ -9,6 +9,7 @@ import { replaceEmojis } from '../utils/emoji.js'
 import { extractReasoning } from '../utils/chatBehavior.js'
 import { useEmojiStore } from '@/stores/emojiStore'
 import { useThemeStore } from '@/stores/theme'
+import { getMermaid, applyMermaidConfig } from '@/services/mermaid.js'
 
 const SANITIZE_OPTIONS = {
   ADD_TAGS: ['div', 'code', 'pre', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'ul', 'ol', 'li', 'blockquote', 'hr', 'br', 'button', 'img', 'strong', 'em', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'input'],
@@ -141,6 +142,11 @@ const IMAGE_RETRY_DELAYS = [400, 1000, 2000]
 
 // 渲染缓存上限：防止长会话中每条消息都持有整段 HTML 导致内存持续增长
 const RENDER_CACHE_MAX = 10
+
+// 流式阶段超过该字符数时，暂停逐字 Markdown 实时渲染、退化为纯文本，
+// 避免超长回复在流式阶段每次刷新都整段重解析 Markdown 造成的 O(n²) 卡顿；
+// 流式结束后仍会完整渲染一次（与「流式结束后解析 MD」开关行为一致）。
+const STREAMING_MARKDOWN_MAX_CHARS = 6000
 
 const normalizeHref = (href, { allowDataImage = false } = {}) => {
   if (typeof href !== 'string') return ''
@@ -676,9 +682,9 @@ const normalizeMarkdownForStreaming = content => {
     // 正文排除推理过程，推理单独渲染到折叠块
     const main = reasoningState.value.main
     if (loading.value) {
-      // 「流式结束后解析 MD」开启时：流式期间仅显示纯文本，结束后再完整解析 Markdown，
+      // 「流式结束后解析 MD」开启或正文超长时：流式期间仅显示纯文本，结束后再完整解析 Markdown，
       // 避免超长回复在流式阶段逐字解析 Markdown 造成的卡顿。
-      if (themeStore.config.parseMdAfterStream) {
+      if (themeStore.config.parseMdAfterStream || main.length > STREAMING_MARKDOWN_MAX_CHARS) {
         return `<div class="md-stream-plain">${escapeHtml(main)}</div>`
       }
       // 流式阶段也按 Markdown 渐进渲染（自动补全未闭合围栏），避免结束时整段重排的“闪烁”。
@@ -739,24 +745,8 @@ const normalizeMarkdownForStreaming = content => {
     })
   }, 300)
 
-  // 懒加载 mermaid（仅在消息含流程图时才加载，避免拖大主聊天包）
-  let mermaidModulePromise = null
-  const getMermaid = () => {
-    if (!mermaidModulePromise) {
-      mermaidModulePromise = import('mermaid').then(mod => {
-        const mermaid = mod.default
-        mermaid.initialize({
-          startOnLoad: false,
-          securityLevel: 'strict',
-          theme: 'neutral',
-          fontFamily: 'var(--code-font-family, system-ui)',
-          suppressErrorRendering: true
-        })
-        return mermaid
-      })
-    }
-    return mermaidModulePromise
-  }
+  // mermaid 模块经共享服务懒加载（@/services/mermaid.js），
+  // 主题/手绘等全局配置在每次渲染前由 applyMermaidConfig 按用户设置幂等应用。
 
   const markMermaidWidth = (block, renderEl) => {
     const svg = renderEl.querySelector('svg')
@@ -818,6 +808,8 @@ const normalizeMarkdownForStreaming = content => {
       let mermaid
       try {
         mermaid = await getMermaid()
+        // 渲染前按当前用户配置（主题/手绘）幂等刷新全局配置
+        applyMermaidConfig(mermaid)
       } catch (error) {
         console.error('Mermaid 加载失败:', error)
         blocks.forEach(block => {
@@ -866,6 +858,23 @@ const normalizeMarkdownForStreaming = content => {
       }
     })
   }, 300)
+
+  // 图表样式配置（主题/手绘）或生效明暗变化时，重置已渲染图表并按新配置重渲染。
+  // 源码一直保留在 .mermaid-source code 中，可无损重渲。
+  watch(
+    () => [themeStore.config.mermaidTheme, themeStore.config.mermaidLook, themeStore.effectiveIsDark],
+    () => {
+      if (!contentRef.value) return
+      const renderedBlocks = contentRef.value.querySelectorAll('.mermaid-block.mermaid-rendered')
+      if (renderedBlocks.length === 0) return
+      renderedBlocks.forEach(block => {
+        const renderEl = block.querySelector('.mermaid-render')
+        if (renderEl) renderEl.innerHTML = ''
+        block.classList.remove('mermaid-rendered', 'mermaid-wide')
+      })
+      renderMermaid()
+    }
+  )
 
   // 标记超出容器宽度的表格（.table-overflow），用于显示"左右滑动查看更多"提示
   const markTableOverflow = () => {

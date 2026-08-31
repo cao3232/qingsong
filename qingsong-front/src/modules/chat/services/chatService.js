@@ -33,18 +33,9 @@ const createHistoryMessageId = (chatId, index, role = 'unknown') =>
 export const createClientMessageId = (prefix = 'msg') =>
   `${prefix}-${Date.now().toString(36)}-${nextRuntimeSequence()}`
 
-// 判定"无法连接后端"类错误（网络层失败或网关不可达），用于给用户明确的连接失败提示
-export const isConnectionError = error => {
-  const message = String(error?.message || '')
-  return (
-    [502, 503, 504].includes(error?.status) ||
-    [502, 503, 504].includes(error?.response?.status) ||
-    !error?.response ||
-    error?.code === 'ERR_NETWORK' ||
-    error?.name === 'TypeError' ||
-    /failed to fetch|network error|networkerror|load failed|connect(ion)? (refused|reset|timed? out)/i.test(message)
-  )
-}
+// 网络/网关错误判定与统一文案已上提到 @/services/networkError（单一真源），
+// 此处仅作兼容 re-export，保持本模块导出接口不变，调用方 import 路径无需改动
+export { isConnectionError, getConnectionErrorMessage } from '@/services/networkError'
 
 export const decodeStreamChunk = (decoder, value) =>
   decoder.decode(value, { stream: true })
@@ -127,6 +118,10 @@ const mapRoleList = (roles = []) => {
 const mapChatHistory = (chatList = [], type = 'chat') =>
   chatList.map((chat) => ({
     id: normalizeId(chat.id),
+    // 游标分页第二排序键（ai_chat_session 主键）
+    sessionDbId: chat.sessionDbId ?? null,
+    // 标识服务端来源：loadChatHistory 用 source !== 'server' 过滤出本地临时会话
+    source: 'server',
     role: chat.role || chat.roleCode || chat.name,
     title:
       chat.title ||
@@ -370,6 +365,71 @@ export const chatAPI = {
       )
       return mapChatMessages(messages, effectiveRole, chatId)
     } catch (error) {
+      // 404：会话不存在或已删除（区别于"存在但无消息"的 []），由调用方决定回退策略
+      if (error?.status === 404) {
+        return null
+      }
+      console.error('Chat API Error:', error)
+      return []
+    }
+  },
+
+  // 会话列表游标分页：keyword 匹配标题；start/end 为时间范围（左闭右开）；before/beforeId 为上一页末条游标
+  async getChatHistoryPage({ type = 'chat', role, keyword, start, end, before, beforeId, limit = 15 } = {}) {
+    try {
+      const effectiveRole = resolveHistoryRole(type, role)
+      const params = new URLSearchParams()
+      if (keyword) params.append('keyword', keyword)
+      if (start) params.append('start', start)
+      if (end) params.append('end', end)
+      if (before) params.append('before', before)
+      if (beforeId != null) params.append('beforeId', String(beforeId))
+      params.append('limit', String(limit))
+      // 走同源相对路径，经 vite 代理到后端，避免直连 API_BASE_URL(8088) 触发跨域
+      const result = await http.get(
+        `/ai/history/${encodeURIComponent(type)}/${encodeURIComponent(effectiveRole)}/page?${params.toString()}`
+      )
+      if (!result?.ok) {
+        return { list: [], hasMore: false }
+      }
+      return {
+        list: mapChatHistory(Array.isArray(result.data?.list) ? result.data.list : [], type),
+        hasMore: Boolean(result.data?.hasMore)
+      }
+    } catch (error) {
+      console.error('Chat API Error:', error)
+      return { list: [], hasMore: false }
+    }
+  },
+
+  // 有会话记录的日期集合（yyyy-MM-dd 降序），供日历高亮有记录日期
+  async getChatHistoryDates(type = 'chat', role) {
+    try {
+      const effectiveRole = resolveHistoryRole(type, role)
+      const result = await http.get(
+        `/ai/history/${encodeURIComponent(type)}/${encodeURIComponent(effectiveRole)}/dates`
+      )
+      return result?.ok && Array.isArray(result.data) ? result.data : []
+    } catch (error) {
+      console.error('Chat API Error:', error)
+      return []
+    }
+  },
+
+  // 消息内容搜索：返回消息粒度命中项（sessionNo/sessionTitle/messageNo/messageType/snippet/createdAt）
+  async searchChatMessages(keyword, { type = 'chat', role, start, end, limit = 100 } = {}) {
+    try {
+      const effectiveRole = resolveHistoryRole(type, role)
+      const params = new URLSearchParams()
+      params.append('keyword', keyword)
+      if (start) params.append('start', start)
+      if (end) params.append('end', end)
+      params.append('limit', String(limit))
+      const result = await http.get(
+        `/ai/history/${encodeURIComponent(type)}/${encodeURIComponent(effectiveRole)}/search?${params.toString()}`
+      )
+      return result?.ok && Array.isArray(result.data) ? result.data : []
+    } catch (error) {
       console.error('Chat API Error:', error)
       return []
     }
@@ -411,11 +471,6 @@ export const chatAPI = {
       `${API_BASE_URL}/ai/game?prompt=${encodeURIComponent(prompt)}&chatId=${chatId}`
   ),
 
-  sendServiceMessage: createSceneStreamSender(
-    (prompt, chatId) =>
-      `${API_BASE_URL}/ai/service?prompt=${encodeURIComponent(prompt)}&chatId=${chatId}`
-  ),
-
   async sendPdfMessage(prompt, chatId) {
     const response = await fetchAuth(
       `${API_BASE_URL}/ai/pdf/chat?prompt=${encodeURIComponent(prompt)}&chatId=${normalizeId(chatId)}`,
@@ -426,16 +481,6 @@ export const chatAPI = {
     )
 
     return getStreamReader(response)
-  },
-
-  async getQuickPhrases() {
-    try {
-      const data = await http.get(`${API_BASE_URL}/api/quick-phrases`)
-      return data.data
-    } catch (error) {
-      console.error('Chat API Error:', error)
-      return []
-    }
   },
 
   async getAvailableTools() {

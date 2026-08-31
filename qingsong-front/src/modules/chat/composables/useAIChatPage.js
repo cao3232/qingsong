@@ -1,4 +1,5 @@
 import { computed, nextTick, onMounted, onBeforeUnmount, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import {
   chatAPI,
@@ -11,6 +12,10 @@ import {
   consumeChatSseReader
 } from '../utils/chatSse.js'
 import { getVirtualListController } from './virtualListController.js'
+import { useFavoriteMessages } from './useFavoriteMessages.js'
+import { formatLocalDateTime, historyCursorOf, mergeHistoryUnique } from '../utils/chatHistoryPager.js'
+import { createMessageCache } from '../utils/messageCache.js'
+import { clearKeywordHighlight, waitForMessageAndHighlight } from '../utils/textHighlight.js'
 
 const ROLE_PANEL_LAYOUT_VERSION = '2'
 const LOCAL_CHAT_ID_PREFIX = 'temp-'
@@ -21,9 +26,6 @@ const createLocalChatId = () =>
 export const isLocalOnlyChatId = chatId => String(chatId || '').startsWith(LOCAL_CHAT_ID_PREFIX)
 
 const DEFAULT_CONVERSATION_TITLES = new Set(['', '新会话', '新对话'])
-
-const resolveConversationTimestamp = chat =>
-  chat?.lastMessageAt || chat?.createdAt || chat?.timestamp || chat?.created_at || null
 
 const normalizePreviewText = value => String(value || '').replace(/\s+/g, ' ').trim()
 
@@ -39,15 +41,6 @@ const buildConversationPreviewTitle = value => {
 
 const shouldReplaceConversationTitle = chat =>
   !chat || DEFAULT_CONVERSATION_TITLES.has(normalizePreviewText(chat.title || chat.name))
-
-const toTimestampValue = value => {
-  if (!value) {
-    return 0
-  }
-
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? 0 : date.getTime()
-}
 
 const normalizeRoles = (roleList = []) =>
   roleList.map(role => {
@@ -94,10 +87,24 @@ export const useAIChatPage = () => {
   const rolePanelCollapsed = ref(false)
   const sidebarCollapsed = ref(false)
   const message = useMessage()
+  // 会话列表分页状态：historyFilter 由侧边栏筛选（关键词/日期范围）驱动
+  const historyHasMore = ref(false)
+  const historyLoadingMore = ref(false)
+  const historyFilter = ref({ keyword: '', start: null, end: null })
+  const historyDates = ref([])
+  // 会话消息 LRU 缓存：切会话不重拉；发送/删除消息后 invalidate（流式消息与回读形状不同，不 append）
+  const messageCache = createMessageCache(8)
+  // 消息收藏星标回显：消息接口已合并 favorited 字段，加载消息后直接以消息为准对齐单例，
+  // 不再单独请求 favorite/status（useFavoriteMessages 单例）
+  const { syncFromMessages } = useFavoriteMessages()
+  // 必须在 setup 同步阶段（await 之前）获取路由，避免在 async onMounted 延续里
+  // currentInstance 为空导致 useRoute() 返回 undefined
+  const route = useRoute()
 
   let isStartingNewChat = false
   let activeRequestToken = null
   let abortController = null
+  let rolesRequestPromise = null
 
   const currentChatName = computed(() => {
     if (!currentChatId.value) return ''
@@ -124,16 +131,29 @@ export const useAIChatPage = () => {
   }
 
   const loadRoles = async () => {
-    const loadingMsg = message.loading('正在加载角色列表...', { duration: 0 })
+    // 并发去重：深链进入时 useAIChatPage 与 useChatRouteSync 可能同时触发角色加载，只发一次请求
+    if (rolesRequestPromise) {
+      return rolesRequestPromise
+    }
+
+    rolesRequestPromise = (async () => {
+      const loadingMsg = message.loading('正在加载角色列表...', { duration: 0 })
+
+      try {
+        const rolesList = await chatAPI.getRoles()
+        roles.value = normalizeRoles(rolesList)
+      } catch (error) {
+        console.error('加载角色列表失败:', error)
+        message.error('加载角色列表失败，请稍后重试')
+      } finally {
+        loadingMsg.destroy()
+      }
+    })()
 
     try {
-      const rolesList = await chatAPI.getRoles()
-      roles.value = normalizeRoles(rolesList)
-    } catch (error) {
-      console.error('加载角色列表失败:', error)
-      message.error('加载角色列表失败，请稍后重试')
+      return await rolesRequestPromise
     } finally {
-      loadingMsg.destroy()
+      rolesRequestPromise = null
     }
   }
 
@@ -188,31 +208,61 @@ export const useAIChatPage = () => {
       return
     }
 
-    loadChat(String(target.id), target)
+    loadChat(String(target.id))
   }
 
-  const loadChat = async (chatId, role) => {    if (isStreaming.value) {
+  // 返回值约定：true 成功（含空会话）；null 会话不存在/已删除（404，不 toast，交调用方回退）；false 其它失败（已 toast）
+  const loadChat = async (chatId, { skipScroll = false, force = false } = {}) => {
+    if (isStreaming.value) {
       isStreaming.value = false
+    }
+
+    const cacheKey = String(chatId)
+    if (!force) {
+      const cached = messageCache.get(cacheKey)
+      if (cached) {
+        currentChatId.value = cacheKey
+        // 拷贝数组，避免流式期间对 currentMessages 的 mutation 污染缓存快照
+        currentMessages.value = [...cached]
+        syncFromMessages(currentMessages.value)
+        if (!skipScroll) {
+          setTimeout(() => {
+            scrollToLastMessage()
+          }, 100)
+        }
+        return true
+      }
     }
 
     const loadingMsg = message.loading('正在加载对话消息...', { duration: 0 })
 
     try {
-      currentChatId.value = String(chatId)
+      currentChatId.value = cacheKey
 
       const roleName = selectedRoleName.value || 'user'
 
-      const messages = await chatAPI.getChatMessages(String(chatId), 'chat', roleName)
+      const messages = await chatAPI.getChatMessages(cacheKey, 'chat', roleName)
+      if (messages === null) {
+        currentMessages.value = []
+        return null
+      }
       currentMessages.value = messages
+      messageCache.set(cacheKey, [...messages])
+      syncFromMessages(messages)
 
       await nextTick()
-      setTimeout(() => {
-        scrollToLastMessage()
-      }, 100)
+      // 深链 ?msg= 跳转时跳过自动滚底，避免覆盖消息定位高亮
+      if (!skipScroll) {
+        setTimeout(() => {
+          scrollToLastMessage()
+        }, 100)
+      }
+      return true
     } catch (error) {
       console.error('加载对话消息失败:', error)
       currentMessages.value = []
       message.error('加载对话消息失败，请稍后重试')
+      return false
     } finally {
       loadingMsg.destroy()
     }
@@ -222,51 +272,22 @@ export const useAIChatPage = () => {
     const loadingMsg = message.loading('正在加载聊天历史...', { duration: 0 })
 
     try {
-      const history = await chatAPI.getChatHistory('chat', selectedRoleName.value)
+      const { list, hasMore } = await chatAPI.getChatHistoryPage({
+        type: 'chat',
+        role: selectedRoleName.value,
+        ...historyFilter.value
+      })
+      historyHasMore.value = hasMore
 
-      const serverHistory = Array.isArray(history)
-        ? history.map(item => {
-            const chatId = String(item.id)
-            const timestamp = resolveConversationTimestamp(item)
-
-            return {
-              id: chatId,
-              title: item.title || item.name || '新会话',
-              name: '',
-              role: item.role,
-              timestamp,
-              createdAt: item.createdAt || timestamp,
-              lastMessageAt: item.lastMessageAt || item.createdAt || timestamp,
-              messageCount: item.messageCount ?? 0,
-              source: 'server',
-              desc: item.desc || ''
-            }
-          })
-        : []
-
+      // 本地未持久化的临时会话保持在列表头部，与服务端首页合并去重（Set，O(n)）
       const localHistory = chatHistory.value.filter(
         chat => chat.role === selectedRoleName.value && chat.source !== 'server'
       )
 
-      const allHistory = [...localHistory, ...serverHistory]
-      const uniqueHistory = allHistory.reduce((acc, current) => {
-        if (!acc.find(item => item.id === current.id)) {
-          acc.push(current)
-        }
+      chatHistory.value = mergeHistoryUnique(localHistory, list)
 
-        return acc
-      }, [])
-
-      uniqueHistory.sort((a, b) => {
-        const timeA = toTimestampValue(resolveConversationTimestamp(a))
-        const timeB = toTimestampValue(resolveConversationTimestamp(b))
-        return timeB - timeA
-      })
-
-      chatHistory.value = uniqueHistory
-
-      if (loadLastChat && uniqueHistory.length > 0) {
-        await loadChat(String(uniqueHistory[0].id), uniqueHistory[0])
+      if (loadLastChat && chatHistory.value.length > 0) {
+        await loadChat(String(chatHistory.value[0].id))
       }
     } catch (error) {
       console.error('加载聊天历史失败:', error)
@@ -279,17 +300,122 @@ export const useAIChatPage = () => {
     }
   }
 
+  // 滚动到底加载下一页。游标取当前列表末条（本地临时会话恒在头部，末条必为服务端数据）；
+  // 翻页中若有会话更新 lastMessageAt 导致排序漂移，mergeHistoryUnique 去重兜底
+  const loadMoreHistory = async () => {
+    if (historyLoadingMore.value || !historyHasMore.value) {
+      return
+    }
+
+    const cursor = historyCursorOf(chatHistory.value[chatHistory.value.length - 1])
+    if (!cursor) {
+      historyHasMore.value = false
+      return
+    }
+
+    historyLoadingMore.value = true
+
+    try {
+      const { list, hasMore } = await chatAPI.getChatHistoryPage({
+        type: 'chat',
+        role: selectedRoleName.value,
+        ...historyFilter.value,
+        ...cursor
+      })
+      historyHasMore.value = hasMore
+      chatHistory.value = mergeHistoryUnique(chatHistory.value, list)
+    } catch (error) {
+      console.error('加载更多会话失败:', error)
+      message.error('加载更多会话失败，请稍后重试')
+    } finally {
+      historyLoadingMore.value = false
+    }
+  }
+
+  // 侧边栏筛选变更（关键词/日期范围）→ 重置回第一页
+  const applyHistoryFilter = filter => {
+    historyFilter.value = {
+      keyword: String(filter?.keyword || '').trim(),
+      start: filter?.start || null,
+      end: filter?.end || null
+    }
+    loadChatHistory(false)
+  }
+
+  const loadHistoryDates = async () => {
+    historyDates.value = await chatAPI.getChatHistoryDates('chat', selectedRoleName.value)
+  }
+
+  // 发出消息后当天必有记录（用户消息已落库）：本地补日期，避免再请求一次
+  const markTodayHistoryActive = () => {
+    const today = formatLocalDateTime(new Date())?.slice(0, 10)
+    if (today && !historyDates.value.includes(today)) {
+      historyDates.value = [today, ...historyDates.value]
+    }
+  }
+
+  // 侧边栏删除非当前会话后本地移除（不再延迟全量重拉历史）
+  const removeChatFromHistory = chatId => {
+    const index = chatHistory.value.findIndex(chat => String(chat.id) === String(chatId))
+    if (index !== -1) {
+      chatHistory.value.splice(index, 1)
+    }
+    messageCache.remove(String(chatId))
+    // 该日期可能因此没有记录，日历高亮需刷新
+    loadHistoryDates()
+  }
+
+  // 搜索结果点击：跨会话跳转（先加载目标会话，再定位消息；skipScroll 防止自动滚底覆盖定位）
+  const openChatAtMessage = async ({ chatId, messageNo, keyword } = {}) => {
+    if (!chatId || !messageNo) {
+      return
+    }
+
+    if (String(chatId) === String(currentChatId.value)) {
+      handleJumpToMessage({ messageNo, keyword })
+      return
+    }
+
+    const result = await loadChat(String(chatId), { skipScroll: true })
+    if (result === null) {
+      message.warning('会话不存在或已删除')
+      return
+    }
+    handleJumpToMessage({ messageNo, keyword })
+  }
+
   const loadLatestChat = async () => {
     await loadChatHistory(false)
     currentMessages.value = []
 
     if (chatHistory.value.length > 0) {
       const latestChat = chatHistory.value[0]
-      await loadChat(String(latestChat.id), latestChat)
+      await loadChat(String(latestChat.id))
       return
     }
 
     await startNewChat({ role: selectedRole, fromHistory: true })
+  }
+
+  // 默认初始化：优先选中最近对话角色，否则第一个角色；无可用角色时给出提示。
+  // 供 onMounted 与 useChatRouteSync（角色不存在兜底）复用
+  const initDefaultChat = async () => {
+    if (roles.value.length === 0) {
+      await loadRoles()
+    }
+
+    const lastId = roleStats.value?.lastRole?.id
+    const defaultRole = lastId != null
+      ? roles.value.find(role => String(role.value?.id) === String(lastId))
+      : null
+
+    if (defaultRole) {
+      await startNewChat(defaultRole)
+    } else if (roles.value.length > 0) {
+      await startNewChat(roles.value[0])
+    } else {
+      message.warning('没有可用的角色，请检查角色配置')
+    }
   }
 
   const startNewChat = async roleValue => {
@@ -321,6 +447,11 @@ export const useAIChatPage = () => {
           id: roleId
         }
         selectedRoleName.value = actualRole.value.name
+
+        // 筛选条件按角色隔离：切角色重置，避免带着上一角色的关键词/日期过滤
+        historyFilter.value = { keyword: '', start: null, end: null }
+        // 日历可用日期随角色刷新（不阻塞历史加载）
+        loadHistoryDates()
 
         await loadChatHistory()
 
@@ -543,6 +674,9 @@ export const useAIChatPage = () => {
       // 会话已被删除：提示用户新建会话，并刷新会话列表
       if (errorCode === 'CHAT_SESSION_DELETED') {
         assistantMessageRef.sessionDeleted = true
+        if (requestChatId) {
+          messageCache.remove(String(requestChatId))
+        }
         loadChatHistory(false)
       }
 
@@ -553,6 +687,12 @@ export const useAIChatPage = () => {
       if (abortController && abortController.signal.aborted) {
         abortController = null
       }
+      // 发送后使该会话的消息缓存失效（流式消息与服务端回读形状不同，下次切回重拉）
+      if (requestChatId) {
+        messageCache.remove(String(requestChatId))
+      }
+      // 用户消息已落库，无论流成功与否当天都有记录：本地补日历日期
+      markTodayHistoryActive()
       // 每次对话结束后刷新角色榜单（后端已在请求时计数）
       refreshRoleStatsDebounced()
     }
@@ -621,11 +761,18 @@ export const useAIChatPage = () => {
 
   const handleClearChat = async () => {
     // 删除当前对话后刷新历史并加载最新对话（无记录时自动新建），与左侧删除逻辑一致
+    if (currentChatId.value) {
+      messageCache.remove(String(currentChatId.value))
+    }
+    loadHistoryDates()
     await loadLatestChat()
   }
 
   // 当前会话已被删除：回到全新的本地会话，避免停留在已删除会话上
   const handleSessionDeleted = () => {
+    if (currentChatId.value) {
+      messageCache.remove(String(currentChatId.value))
+    }
     const newChatId = createLocalChatId()
     currentChatId.value = newChatId
     currentMessages.value = []
@@ -687,6 +834,12 @@ export const useAIChatPage = () => {
       const targetIndex = resolveVirtualIndex(messageData)
       if (targetIndex >= 0 && targetIndex < currentMessages.value.length) {
         virtualList.scrollToIndex(targetIndex, { align: 'auto', behavior: 'auto', highlight: true })
+        // 带关键词的跳转（搜索结果/会话内搜索）：消息渲染后做字符级高亮并定位到命中处
+        if (messageData.keyword) {
+          waitForMessageAndHighlight(targetIndex, messageData.keyword)
+        } else {
+          clearKeywordHighlight()
+        }
         message.success('已跳转到目标消息')
       } else {
         message.warning('未找到对应的消息，请确保消息已加载完成')
@@ -742,18 +895,9 @@ export const useAIChatPage = () => {
       // 并行加载角色列表与使用统计榜单
       await Promise.all([loadRoles(), loadRoleStats()])
 
-      // 默认选中：优先使用后端统计的最近对话角色 lastRole.id，否则选第一个角色
-      const lastId = roleStats.value?.lastRole?.id
-      const defaultRole = lastId != null
-        ? roles.value.find(role => String(role.value?.id) === String(lastId))
-        : null
-
-      if (defaultRole) {
-        await startNewChat(defaultRole)
-      } else if (roles.value.length > 0) {
-        await startNewChat(roles.value[0])
-      } else {
-        message.warning('没有可用的角色，请检查角色配置')
+      // 深链进入（URL 带 roleId）时，初始角色/会话由 useChatRouteSync 驱动，此处不做默认初始化
+      if (!route.params?.roleId) {
+        await initDefaultChat()
       }
     } catch (error) {
       console.error('初始化失败:', error)
@@ -784,6 +928,7 @@ export const useAIChatPage = () => {
 
   return {
     appendMessage,
+    applyHistoryFilter,
     cancelStreaming,
     chatHistory,
     currentChatId,
@@ -796,12 +941,20 @@ export const useAIChatPage = () => {
     handleRolesUpdated,
     handleSessionDeleted,
     handleUpdateChatName,
+    historyDates,
+    historyHasMore,
+    historyLoadingMore,
+    initDefaultChat,
     isStreaming,
     loadChat,
     loadChatHistory,
+    loadHistoryDates,
     loadLatestChat,
+    loadMoreHistory,
     loadRoles,
+    openChatAtMessage,
     ragEnabled,
+    removeChatFromHistory,
     rolePanelCollapsed,
     roleStats,
     roles,

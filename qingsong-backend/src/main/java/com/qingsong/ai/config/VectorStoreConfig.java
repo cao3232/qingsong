@@ -104,11 +104,16 @@ public class VectorStoreConfig {
     }
 
     /**
-     * TokenTextSplitter Bean，供知识入库文本切分使用
+     * TokenTextSplitter Bean，供知识入库文本切分使用（参数见 qingsong.rag.chunk-*）
      */
     @Bean
-    public TokenTextSplitter tokenTextSplitter() {
-        return new TokenTextSplitter();
+    public TokenTextSplitter tokenTextSplitter(RagProperties ragProperties) {
+        return TokenTextSplitter.builder()
+                .withChunkSize(ragProperties.getChunkSize())
+                .withMinChunkSizeChars(ragProperties.getMinChunkSizeChars())
+                .withMinChunkLengthToEmbed(ragProperties.getMinChunkLengthToEmbed())
+                .withMaxNumChunks(ragProperties.getMaxNumChunks())
+                .build();
     }
 
     @Bean

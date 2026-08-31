@@ -3,7 +3,6 @@ package com.qingsong.ai.controller.knowledge;
 import com.qingsong.ai.entity.po.knowledge.KnowledgeBase;
 import com.qingsong.ai.entity.vo.knowledge.KnowledgeBaseReqVO;
 import com.qingsong.ai.entity.vo.knowledge.KnowledgeBaseRespVO;
-import com.qingsong.ai.entity.vo.mapper.KnowledgeBaseStructMapper;
 import com.qingsong.ai.service.knowledge.KnowledgeBaseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;

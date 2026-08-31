@@ -18,13 +18,22 @@ export const mainRoutes = [
     component: () => import('../../../app/pages/index.js').then(module => module.BiophilicAuthPage)
   },
   {
-    path: '/chat',
+    // 会话分离路由：roleId/chatId 均可选，三个形态（/chat、/chat/:roleId、/chat/:roleId/:chatId）
+    // 共用同一 route name（AIChat），避免 AppShell 用 name 做组件 key 时 URL 变化触发 AIChatPage 重挂载全量刷新
+    path: '/chat/:roleId?/:chatId?',
     name: 'AIChat',
     component: () => import('../../../modules/chat/index.js').then(module => module.AIChatPage)
   },
   {
+    // 聊天消息收藏页：路径不能放 /chat/* 下（会被 /chat/:roleId?/:chatId? 动态段吞掉）
+    path: '/chat-favorites',
+    name: 'ChatFavorites',
+    component: () => import('../../../modules/chat/index.js').then(module => module.ChatFavoritesPage)
+  },
+  {
     path: '/pdf-reader',
     name: 'PDFReader',
+    meta: { failOpen: true },
     component: () => import('../../../modules/chat/index.js').then(module => module.PDFReaderPage)
   },
   {
@@ -41,6 +50,7 @@ export const mainRoutes = [
     path: '/config',
     name: 'Config',
     redirect: '/config/system',
+    meta: { failOpen: true },
     component: () => import('../../../modules/tools/pages/ConfigView.vue'),
     children: [
       {

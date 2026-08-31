@@ -34,4 +34,13 @@ public interface ChatPersistenceService {
     void validateRetry(String sessionNo, String messageNo);
 
     void retryLastRound(String bizType, String roleCode, String sessionNo, String messageNo, String content);
+
+    /**
+     * 标记会话已转人工（客服场景）：status 置为 {@code escalated}。
+     * 会话不存在或已删除时静默忽略（仅记日志），不影响工具调用链路。
+     *
+     * @param sessionNo 会话号
+     * @param reason    转人工原因
+     */
+    void markEscalated(String sessionNo, String reason);
 }

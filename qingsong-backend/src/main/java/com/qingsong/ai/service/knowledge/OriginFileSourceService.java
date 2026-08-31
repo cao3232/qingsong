@@ -75,6 +75,14 @@ public interface OriginFileSourceService extends IService<OriginFileSource> {
 
     boolean uploadFile(MultipartFile file, String knowledgeId);
 
+    /**
+     * 对已入库文档执行向量化（解析、切分、写入向量库并标记已嵌入），供重新嵌入/重试使用。
+     *
+     * @param document 文档实体（须含 sourceId、knowledgeId、fileName）
+     * @return 是否成功
+     */
+    boolean embedDocument(DocumentBase document);
+
     boolean deleteFile(OriginFileSource fileSource);
 
     InputStream downloadFileByDocument(DocumentBase document);

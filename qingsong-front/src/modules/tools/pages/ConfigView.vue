@@ -870,6 +870,25 @@ const handleTabClick = (tab) => {
   background: var(--app-component-bg, rgba(255, 255, 255, 0.8));
 }
 
+.model-table-container::-webkit-scrollbar {
+  width: 6px; /* 纵向滚动条宽度 */
+  height: 6px; /* 横向滚动条高度 */
+}
+
+.model-table-container::-webkit-scrollbar-track {
+  background: var(--app-bg-secondary, #f1f1f1);
+  border-radius: 3px;
+}
+
+.model-table-container::-webkit-scrollbar-thumb {
+  background: var(--app-border-color, #c1c1c1);
+  border-radius: 3px;
+}
+
+.model-table-container::-webkit-scrollbar-thumb:hover {
+  background: var(--app-text-secondary, #a1a1a1);
+}
+
 .model-table tbody tr:nth-child(even) {
   background: rgba(249, 250, 251, 0.5);
 }
@@ -1634,7 +1653,9 @@ const handleTabClick = (tab) => {
   padding: 0 14px;
   border: 1px solid transparent;
   border-radius: 14px;
-  color: var(--config-muted);
+  /* 普通态用主文字色：侧栏是半透明玻璃，彩色页面背景会渗入，
+     次级灰字在部分预设下对比度不足 4.5（contrast-audit 侧栏普通项硬门禁） */
+  color: var(--config-ink);
   font-weight: 600;
   transform: none;
 }

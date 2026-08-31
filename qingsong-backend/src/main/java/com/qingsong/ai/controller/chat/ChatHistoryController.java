@@ -1,8 +1,11 @@
 package com.qingsong.ai.controller.chat;
 
+import cn.dev33.satoken.stp.StpUtil;
 import com.qingsong.ai.entity.po.ChatHistory;
 import com.qingsong.ai.entity.vo.MessageVO;
 import com.qingsong.ai.entity.vo.Result;
+import com.qingsong.ai.entity.vo.chat.ChatHistoryPageVO;
+import com.qingsong.ai.entity.vo.chat.ChatSearchHitVO;
 import com.qingsong.ai.entity.vo.chat.RedisMigrationSummary;
 import com.qingsong.ai.repository.ChatHistoryRepository;
 import com.qingsong.ai.repository.ChatMemoryRepository;
@@ -10,14 +13,18 @@ import com.qingsong.ai.service.chat.ChatHistoryService;
 import com.qingsong.ai.service.chat.LegacyRedisChatMigrationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -44,12 +51,55 @@ public class ChatHistoryController {
     }
 
     /**
+     * 游标分页查询会话列表：支持标题关键词与时间范围过滤。
+     * 游标为上一页末条的 (COALESCE(lastMessageAt, createdAt), sessionDbId)，首页不传 before/beforeId。
+     */
+    @GetMapping("/{type}/{role}/page")
+    public Result<ChatHistoryPageVO> getChatHistoryPage(
+            @PathVariable("type") String type, @PathVariable("role") String role,
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "start", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
+            @RequestParam(value = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
+            @RequestParam(value = "before", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime before,
+            @RequestParam(value = "beforeId", required = false) Long beforeId,
+            @RequestParam(value = "limit", defaultValue = "15") int limit) {
+        return Result.ok(chatHistoryService.getChatHistoryPage(type, role, keyword, start, end, before, beforeId, limit));
+    }
+
+    /**
+     * 有会话记录的日期集合（yyyy-MM-dd 降序），供前端日历高亮有记录日期。
+     */
+    @GetMapping("/{type}/{role}/dates")
+    public Result<List<String>> getChatHistoryDates(@PathVariable("type") String type, @PathVariable("role") String role) {
+        return Result.ok(chatHistoryService.getChatHistoryDates(type, role));
+    }
+
+    /**
+     * 消息内容搜索：返回消息粒度命中项（含关键词上下文摘要），按时间倒序。
+     */
+    @GetMapping("/{type}/{role}/search")
+    public Result<List<ChatSearchHitVO>> searchChatMessages(
+            @PathVariable("type") String type, @PathVariable("role") String role,
+            @RequestParam("keyword") String keyword,
+            @RequestParam(value = "start", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
+            @RequestParam(value = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
+            @RequestParam(value = "limit", defaultValue = "100") int limit) {
+        return Result.ok(chatHistoryService.searchChatMessages(type, role, keyword, start, end, limit));
+    }
+
+    /**
      * 查询指定会话的消息明细。
      * 消息体中的 createdAt / id 由持久化层统一组装，前端不再依赖 chatId 推导时间。
+     * 每条消息合并 favorited 收藏星标（按当前登录用户），前端不再单独请求 favorite/status。
+     * 会话不存在或已删除时返回 404 + Result.fail（区别于"存在但无消息"的 200 空列表）。
      */
     @GetMapping("/{type}/{role}/{chatId}")
-    public List<MessageVO> getChatHistoryMsg(@PathVariable("type") String type, @PathVariable("role") String role, @PathVariable("chatId") String chatId) {
-        return chatHistoryService.getChatHistoryMessage(type, role, chatId);
+    public ResponseEntity<?> getChatHistoryMsg(@PathVariable("type") String type, @PathVariable("role") String role, @PathVariable("chatId") String chatId) {
+        List<MessageVO> messages = chatHistoryService.getChatHistoryMessage(type, role, chatId, StpUtil.getLoginIdAsLong());
+        if (messages == null) {
+            return ResponseEntity.status(404).body(Result.fail("会话不存在或已删除"));
+        }
+        return ResponseEntity.ok(messages);
     }
 
 

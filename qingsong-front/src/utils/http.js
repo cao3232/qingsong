@@ -3,6 +3,13 @@ import { API_BASE_URL } from '@/config/env'
 import { getAuthToken } from '@/services/authSession'
 import { redirectToLogin } from '@/services/authRedirect'
 import { getResponseErrorMessage, isAuthFailure } from '@/services/authResponse'
+import {
+  isConnectionError,
+  getConnectionErrorMessage,
+  markNotified,
+  isNotified
+} from '@/services/networkError'
+import { getGlobalMessage } from '@/services/message'
 
 // 统一 HTTP 客户端（ES module 单例）：
 // - baseURL 来自环境变量（见 src/config/env.js）
@@ -47,15 +54,28 @@ http.interceptors.response.use(
       return Promise.reject(new Error('登录态已失效，请重新登录'))
     }
 
-    const message = getResponseErrorMessage({
-      status,
-      payload,
-      fallback: error?.message
-    })
-    console.error('[http]', message)
-    const responseError = new Error(message)
+    const silent = Boolean(error?.config?.silent || error?.response?.config?.silent)
+    const conn = isConnectionError(error)
+    const isServerError = status !== undefined && status >= 500
+    const errorMessage = conn
+      ? getConnectionErrorMessage()
+      : getResponseErrorMessage({ status, payload, fallback: error?.message })
+
+    const responseError = new Error(errorMessage)
     responseError.status = status
     responseError.cause = error
+
+    // 5xx 服务端错误（500/502/503/504）与网络层失败由拦截器统一弹一次提示，避免各调用方
+    // 重复硬编码文案；4xx 等业务错误只统一文案、不主动弹（交调用方按上下文提示，防止与页面重复）
+    if ((conn || isServerError) && !silent) {
+      const api = getGlobalMessage()
+      if (api && !isNotified(responseError)) {
+        api.error(errorMessage)
+        markNotified(responseError)
+      }
+    }
+
+    console.error('[http]', errorMessage)
     return Promise.reject(responseError)
   }
 )

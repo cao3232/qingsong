@@ -1,0 +1,140 @@
+// 天空皮肤：「晴空流云」场景层与签名细节。
+// 配色由 theme.js skinPresets['sky'] 的 --chat-* 变量驱动（基础组件已消费变量），
+// 本文件只负责结构性装饰：天际渐变、流云、太阳光晕、标题栏天气牌。
+
+.ai-chat-view.chat-skin-sky {
+  position: relative;
+  isolation: isolate;
+  // 天际渐变：天顶蓝 → 地平线浅蓝（与 --chat-wallpaper 同色系）
+  background: linear-gradient(180deg, #7cc4f0 0%, #a8dcf8 40%, #dff2fd 100%) !important;
+  color: var(--chat-text, #1e3a52);
+  font-family: var(--chat-font-family);
+}
+
+.chat-skin-sky .sky-scene {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+// --- 太阳：右上暖阳光晕（静态，低透明度不干扰阅读） ---
+.chat-skin-sky .sky-sun {
+  position: absolute;
+  top: -60px;
+  right: -40px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 236, 170, 0.55) 0%, rgba(255, 236, 170, 0.18) 45%, transparent 70%);
+}
+
+// --- 流云：纯 CSS 云团（圆角底座 + 两个圆形凸起），横向漂移 ---
+.chat-skin-sky .sky-cloud {
+  position: absolute;
+  width: 220px;
+  height: 60px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  filter: blur(1px);
+  animation: sky-cloud-drift linear infinite;
+}
+.chat-skin-sky .sky-cloud::before {
+  content: '';
+  position: absolute;
+  top: -28px;
+  left: 36px;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+}
+.chat-skin-sky .sky-cloud::after {
+  content: '';
+  position: absolute;
+  top: -16px;
+  right: 40px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+}
+.chat-skin-sky .sky-cloud-a {
+  top: 10%;
+  animation-duration: 85s;
+  animation-delay: -18s;
+}
+.chat-skin-sky .sky-cloud-b {
+  top: 34%;
+  transform: scale(0.7);
+  opacity: 0.75;
+  animation-duration: 120s;
+  animation-delay: -64s;
+}
+.chat-skin-sky .sky-cloud-c {
+  top: 62%;
+  transform: scale(0.5);
+  opacity: 0.6;
+  animation-duration: 150s;
+  animation-delay: -40s;
+}
+
+// --- 标题栏天气牌（仿云海仙门 chat-header::after 文字装饰） ---
+.chat-skin-sky .chat-header::after {
+  content: '☀ CLEAR SKY';
+  position: absolute;
+  right: 50%;
+  bottom: 2px;
+  transform: translateX(50%);
+  color: rgba(255, 255, 255, 0.6);
+  font: 10px/1 system-ui, sans-serif;
+  letter-spacing: 2px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+// --- 发送按钮：晴空微光 ---
+.chat-skin-sky .send-button:hover:not(:disabled) {
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.45), 0 4px 12px rgba(3, 105, 161, 0.3);
+}
+
+// --- 弹层覆写（teleport 到 body，靠 data-chat-skin 继承配色） ---
+body[data-chat-skin='sky'] .n-popover.chat-workspace-popover {
+  --n-color: #ffffff;
+  --n-text-color: #1e3a52;
+  --n-border-color: #b8d9ee;
+  --chat-panel: #ffffff;
+  --chat-panel-hover: #f0f7fd;
+  --chat-surface: #ffffff;
+  --chat-text: #1e3a52;
+  --chat-text-muted: #527088;
+  background: #ffffff;
+  color: #1e3a52;
+  border: 1px solid #b8d9ee;
+  box-shadow: 0 12px 32px rgba(3, 105, 161, 0.18);
+}
+body[data-chat-skin='sky'] .chat-workspace-popover-content {
+  background: #ffffff !important;
+  color: #1e3a52 !important;
+  border: 1px solid #b8d9ee !important;
+  box-shadow: 0 12px 32px rgba(3, 105, 161, 0.18) !important;
+}
+
+@keyframes sky-cloud-drift {
+  from { left: -240px; }
+  to { left: 110%; }
+}
+
+@media (max-width: 768px) {
+  // 移动端精简：只留一朵慢云，隐藏太阳
+  .chat-skin-sky .sky-sun,
+  .chat-skin-sky .sky-cloud-b,
+  .chat-skin-sky .sky-cloud-c { display: none; }
+  .chat-skin-sky .chat-header::after { opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-skin-sky .sky-cloud,
+  .chat-skin-sky * { animation: none !important; transition-duration: 0s !important; }
+}

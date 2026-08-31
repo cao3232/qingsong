@@ -2,27 +2,17 @@ import http from '@/utils/http'
 
 export const knowledgeAPI = {
   async getBases(active) {
-    try {
-      const params = {}
-      if (active !== null && active !== undefined) {
-        params.active = active
-      }
-      return await http.get('/api/knowledge/bases', { params })
-    } catch (error) {
-      console.error('API Error:', error)
-      return []
+    const params = {}
+    if (active !== null && active !== undefined) {
+      params.active = active
     }
+    return http.get('/api/knowledge/bases', { params })
   },
 
   async searchBases(keyword) {
-    try {
-      return await http.get('/api/knowledge/bases/search', {
-        params: { keyword }
-      })
-    } catch (error) {
-      console.error('API Error:', error)
-      return []
-    }
+    return http.get('/api/knowledge/bases/search', {
+      params: { keyword }
+    })
   },
 
   async createBase(name, description = '') {

@@ -17,6 +17,8 @@ public class MessageVO {
     private String content;
     private LocalDateTime createdAt;
     private String chatModel;
+    // 当前用户是否已收藏该消息（星标回显合并进消息体，前端不再单独查 favorite/status）
+    private boolean favorited;
 
     public MessageVO(Message message) {
         switch (message.getMessageType()) {

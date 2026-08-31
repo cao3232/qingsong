@@ -328,28 +328,6 @@ function handleReset() {
   background: linear-gradient(135deg, #ffae52 0%, #f43f5e 100%) !important;
 }
 
-/* 暗色模式 */
-:global(.dark) .setting-card {
-  --n-card-color: rgba(30, 41, 59, 0.9);
-  --n-card-border-color: rgba(255, 255, 255, 0.08);
-  --n-card-title-text-color: #e5e7eb;
-  box-shadow: none;
-}
-:global(.dark) .setting-card :deep(.n-card-header) {
-  border-bottom-color: rgba(255, 255, 255, 0.08);
-}
-:global(.dark) .card-header-title {
-  color: #e5e7eb;
-}
-:global(.dark) .card-header-title svg {
-  color: #fbbf24;
-}
-:global(.dark) .btn-secondary-warm {
-  background: rgba(255, 255, 255, 0.06) !important;
-  color: #fbbf24 !important;
-  border-color: rgba(251, 191, 36, 0.4) !important;
-}
-
 /* 小屏适配 */
 @media (max-width: 639px) {
   .page-container { padding: 12px 4px 24px; }

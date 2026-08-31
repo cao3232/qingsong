@@ -35,7 +35,6 @@ public class ChatContextInterceptor implements AsyncHandlerInterceptor {
 
         System.out.println("请求的路径URI为:"+request.getRequestURI());
         System.out.println("请求的路径URL为:"+request.getRequestURL());
-        // System.out.println("loginId:" + StpUtil.getLoginId());
         if (!request.getRequestURI().equals("chat")) {
             return true;
         }

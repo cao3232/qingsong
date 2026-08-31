@@ -1,38 +1,18 @@
 import http from '@/utils/http'
 
 export const documentAPI = {
-  async getDocuments(knowledgeId) {
-    try {
-      return await http.get(`/api/knowledge/documents/knowledge/${knowledgeId}`)
-    } catch (error) {
-      console.error('API Error:', error)
-      return []
-    }
+  async getDocuments(knowledgeId, pageNum = 1, pageSize = 10, embedding, fileType) {
+    const params = { pageNum, pageSize }
+    if (embedding !== null && embedding !== undefined) params.embedding = embedding
+    if (fileType) params.fileType = fileType
+    return http.get(`/api/knowledge/documents/knowledge/${knowledgeId}`, { params })
   },
 
-  async searchDocuments(knowledgeId, fileName) {
-    try {
-      return await http.get('/api/knowledge/documents/search', {
-        params: { knowledgeId, fileName }
-      })
-    } catch (error) {
-      console.error('API Error:', error)
-      return []
-    }
-  },
-
-  async addDocument(knowledgeId, fileName, path, sourceId = '') {
-    return http.post('/api/knowledge/documents', null, {
-      params: { knowledgeId, fileName, path, ...(sourceId ? { sourceId } : {}) }
-    })
-  },
-
-  async markEmbedded(id) {
-    return http.put(`/api/knowledge/documents/${id}/embedded`)
-  },
-
-  async deleteAllDocuments(knowledgeId) {
-    return http.delete(`/api/knowledge/documents/knowledge/${knowledgeId}`)
+  async searchDocuments(knowledgeId, fileName, pageNum = 1, pageSize = 10, embedding, fileType) {
+    const params = { knowledgeId, fileName, pageNum, pageSize }
+    if (embedding !== null && embedding !== undefined) params.embedding = embedding
+    if (fileType) params.fileType = fileType
+    return http.get('/api/knowledge/documents/search', { params })
   },
 
   async deleteDocument(knowledgeId, documentId) {
@@ -47,6 +27,14 @@ export const documentAPI = {
     }
   },
 
+  async reEmbedDocument(documentId) {
+    return http.post(`/api/knowledge/documents/${documentId}/reembed`)
+  },
+
+  async reEmbedPending(knowledgeId) {
+    return http.post(`/api/knowledge/documents/knowledge/${knowledgeId}/reembed-pending`)
+  },
+
   async downloadDocument(documentId) {
     return http.get(`/api/knowledge/documents/${documentId}/download`, {
       responseType: 'blob'
@@ -54,23 +42,8 @@ export const documentAPI = {
   },
 
   async uploadFile(knowledgeId, file) {
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const result = await http.post(`/api/knowledge/files/${knowledgeId}`, formData)
-      return result === true
-    } catch (error) {
-      console.error('上传文件失败:', error)
-      return false
-    }
-  },
-
-  async getDocument(documentId) {
-    try {
-      return await http.get(`/api/knowledge/documents/${documentId}`)
-    } catch (error) {
-      console.error('获取文档信息失败:', error)
-      return null
-    }
+    const formData = new FormData()
+    formData.append('file', file)
+    return http.post(`/api/knowledge/files/${knowledgeId}`, formData)
   }
 }

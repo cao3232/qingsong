@@ -1,12 +1,14 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useDialog, useMessage } from 'naive-ui'
 import { useVirtualizer } from '@tanstack/vue-virtual'
+import { isNotified, getConnectionErrorMessage } from '@/services/networkError'
 import { chatAPI, isConnectionError } from '../services/index.js'
 import { useChatStore } from '../stores/index.js'
 import { useTtsPlayback } from './useTtsPlayback.js'
 import { isLocalOnlyChatId } from './useAIChatPage.js'
 import { shouldAutoFollowMessages } from '../utils/index.js'
 import { registerVirtualListController } from './virtualListController.js'
+import { waitForMessageAndHighlight } from '../utils/textHighlight.js'
 
 const TOOL_SELECTION_STORAGE_KEY = 'ai-chat-selected-tools'
 const TOOL_GROUP_STORAGE_KEY = 'ai-chat-selected-tool-group'
@@ -141,6 +143,11 @@ export const useChatWorkspace = (props, emit, options = {}) => {
     if (messageIndex < 0) return
 
     scrollToIndex(messageIndex, { align: 'auto', behavior: 'smooth', highlight: true })
+    // 会话内搜索：跳转后对消息体内的关键词做字符级高亮定位
+    const keyword = searchQuery.value.trim()
+    if (keyword) {
+      waitForMessageAndHighlight(messageIndex, keyword)
+    }
   }
 
   const runSearch = () => {
@@ -824,11 +831,14 @@ export const useChatWorkspace = (props, emit, options = {}) => {
         sessionNo: hasRealSession ? currentId : null
       })
     } catch (error) {
-      message.error(
-        isConnectionError(error)
-          ? '无法连接服务器，请检查网络或后端服务'
-          : '获取消息号失败，请稍后重试'
-      )
+      // 拦截器已对连接类错误（502/503/504/网络）统一弹过，此处判 isNotified 去重，避免双弹
+      if (!isNotified(error)) {
+        message.error(
+          isConnectionError(error)
+            ? getConnectionErrorMessage()
+            : '获取消息号失败，请稍后重试'
+        )
+      }
       return null
     }
     if (!pre?.messageNo) {
@@ -849,6 +859,16 @@ export const useChatWorkspace = (props, emit, options = {}) => {
 
     const messageContent = draftMessage.value.trim()
     if (!messageContent && !attachedFiles.value.length) {
+      return
+    }
+
+    // 发送前校验：未选来源/模型时请求会静默缺少 model 参数，只能等后端报笼统错误，这里前置拦截并保留草稿
+    if (!activeSourceId.value) {
+      message.warning('请先在头部选择模型来源')
+      return
+    }
+    if (!getActiveModel()?.code) {
+      message.warning('请先在头部选择 AI 模型')
       return
     }
 

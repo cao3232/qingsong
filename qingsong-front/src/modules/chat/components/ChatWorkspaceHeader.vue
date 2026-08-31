@@ -37,17 +37,33 @@ ix<template>
     <div class="chat-actions">
       <div class="action-group">
         <div class="model-selector">
-          <select :value="activeSourceId" class="model-select"
-            :disabled="isStreaming || isSwitchingModel || sourceOptions.length === 0" title="选择模型来源"
-            @focus="refreshSourceOptions" @change="handleSourceSelectionChange">
-            <option v-if="sourceOptions.length === 0" value="" disabled>加载中...</option>
-            <option v-else-if="!activeSourceId" value="" disabled>请选择来源</option>
-            <template v-else>
-              <option v-for="source in sourceOptions" :key="source.id" :value="source.id">
-                {{ source.sourceName || source.name || source.sourceCode || source.id }}
-              </option>
+          <NPopover v-model:show="showSourceMenu" trigger="click" placement="bottom-start" :show-arrow="false"
+            class="chat-workspace-popover" content-class="chat-workspace-popover-content"
+            :disabled="isStreaming || isSwitchingModel || sourceOptions.length === 0" :content-style="{
+              padding: '4px',
+              background: 'var(--chat-panel, #c0c0c0)',
+              border: '2px solid var(--chat-bevel-shadow, #808080)',
+              borderRadius: 'var(--chat-radius, 0)',
+              boxShadow: 'var(--chat-popover-shadow, 2px 2px 0 rgba(0,0,0,0.25))'
+            }" @update:show="handleSourceMenuShow">
+            <template #trigger>
+              <button type="button" class="model-select model-select-button"
+                :disabled="isStreaming || isSwitchingModel || sourceOptions.length === 0" title="选择模型来源">
+                <span class="model-select-label">{{ activeSourceLabel }}</span>
+                <ChevronDownIcon class="model-select-arrow" />
+              </button>
             </template>
-          </select>
+            <div class="source-menu">
+              <div v-if="sourceOptions.length === 0" class="source-menu-item static">加载中...</div>
+              <template v-else>
+                <button v-for="source in sourceOptions" :key="source.id" type="button" class="source-menu-item"
+                  :class="{ active: String(source.id) === String(activeSourceId) }" :title="sourceDisplayName(source)"
+                  @click="handleSourceSelect(source)">
+                  {{ sourceDisplayName(source) }}
+                </button>
+              </template>
+            </div>
+          </NPopover>
         </div>
 
         <div class="model-selector">
@@ -110,7 +126,7 @@ ix<template>
               <EllipsisHorizontalIcon class="icon" />
             </button>
           </template>
-          <div class="overflow-menu scrollbar-md">
+          <div class="overflow-menu">
             <div class="overflow-menu-section">
               <div class="overflow-menu-heading">信息</div>
               <div class="overflow-menu-item static">
@@ -269,12 +285,12 @@ ix<template>
   <NModal v-if="showRoleDescriptionModal" :show="showRoleDescriptionModal" preset="card"
     :title="roleDescription ? '角色描述' : '聊天历史统计'" style="width: 560px; max-height: 70vh"
     @update:show="handleRoleDescriptionModalUpdate">
-    <div class="role-description-modal scrollbar-md">
+    <div class="role-description-modal">
       <div class="modal-header">
         <span class="modal-title">{{ selectedRoleName || "AI Assistant" }}</span>
         <span class="modal-subtitle">{{ roleDescription ? '完整角色描述' : '按时间范围统计' }}</span>
       </div>
-      <div v-if="roleDescription" class="modal-content scrollbar-md">
+      <div v-if="roleDescription" class="modal-content">
         <p class="modal-text">{{ roleDescription }}</p>
       </div>
       <div class="modal-section">
@@ -323,6 +339,7 @@ import {
 } from "@heroicons/vue/24/outline";
 import { NModal, NPopover } from "naive-ui";
 import { computed, defineEmits, defineProps, ref } from "vue";
+import { useDictStore } from "@/stores/dictStore";
 import { useTtsPlayback } from "../composables/index.js";
 import {
   TTS_CLONE_MAX_BASE64_CHARS,
@@ -364,10 +381,6 @@ const props = defineProps({
   currentChatId: {
     type: [Number, String],
     default: null,
-  },
-  currentChatName: {
-    type: String,
-    default: "",
   },
   currentMessagesLength: {
     type: Number,
@@ -501,8 +514,28 @@ const handleConversationNameInput = (event) => {
   emit("update:editingConversationName", event.target.value);
 };
 
-const handleSourceSelectionChange = (event) => {
-  const sourceId = event.target.value;
+// —— 模型来源自定义下拉（NPopover）：原生 select 弹层由系统渲染、无法自定义滚动条，故用弹层列表替代 ——
+const showSourceMenu = ref(false);
+
+const sourceDisplayName = (source) =>
+  source.sourceName || source.name || source.sourceCode || source.id;
+
+const activeSourceLabel = computed(() => {
+  if (props.sourceOptions.length === 0) return "加载中...";
+  const active = props.sourceOptions.find(
+    (source) => String(source.id) === String(props.activeSourceId)
+  );
+  return active ? sourceDisplayName(active) : "请选择来源";
+});
+
+// 打开弹层时刷新来源选项（替代原原生 select 的 @focus 刷新）
+const handleSourceMenuShow = (value) => {
+  if (value) refreshSourceOptions();
+};
+
+const handleSourceSelect = (source) => {
+  showSourceMenu.value = false;
+  const sourceId = String(source.id);
   emit("update:activeSourceId", sourceId);
   emit("refresh-model-options", sourceId);
 };
@@ -516,18 +549,15 @@ const handleRoleDescriptionModalUpdate = (value) => {
   emit("update:showRoleDescriptionModal", value);
 };
 
-const temperatureOptions = [
-  { value: 0, label: "0 - 严谨" },
-  { value: 0.2, label: "0.2" },
-  { value: 0.4, label: "0.4" },
-  { value: 0.6, label: "0.6" },
-  { value: 0.7, label: "0.7 - 默认" },
-  { value: 0.8, label: "0.8" },
-  { value: 1.0, label: "1.0 - 均衡" },
-  { value: 1.2, label: "1.2" },
-  { value: 1.5, label: "1.5" },
-  { value: 2.0, label: "2.0 - 发散" },
-];
+const dictStore = useDictStore();
+
+// 温度选项：来自业务字典（dict_code=温度，item_key=数值，item_label=展示文案，后端按 sort 排序）
+const temperatureOptions = computed(() =>
+  dictStore
+    .getItems("温度")
+    .map((item) => ({ value: Number(item.key), label: item.label }))
+    .filter((option) => Number.isFinite(option.value))
+);
 
 const handleContextSizeChange = (event) => {
   emit("update:contextSize", event.target.value);
@@ -920,6 +950,96 @@ const resetUsage = () => {
   }
 }
 
+/* 模型来源自定义下拉触发按钮：复用 .model-select 外观，追加弹性布局与下拉箭头 */
+.model-select-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  .model-select-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+  }
+
+  .model-select-arrow {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+  }
+}
+
+/* 模型来源下拉菜单（NPopover teleport 到 body，菜单项仍带本组件 scoped 标识，样式可命中） */
+.source-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 180px;
+  max-width: 260px;
+  max-height: min(50vh, 50dvh, 320px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Firefox 走标准属性（其不支持 ::-webkit-scrollbar），不设置会回退为系统默认粗滚动条 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+
+  &::-webkit-scrollbar {
+    width: var(--scrollbar-size-sm);
+    height: var(--scrollbar-size-sm);
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 2px;
+
+    &:hover {
+      background: var(--scrollbar-thumb-hover);
+    }
+  }
+
+  .source-menu-item {
+    /* 关键：flex 列容器限高后禁止压缩条目——否则条目被等比压扁、文字被 overflow 裁半，且因恰好压到不溢出而不出滚动条 */
+    flex-shrink: 0;
+    display: block;
+    width: 100%;
+    padding: 5px 8px;
+    font-size: 12px;
+    text-align: left;
+    color: var(--chat-text, #000000);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--chat-radius, 0);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--chat-font-family, "MS Sans Serif", "Segoe UI", Tahoma, sans-serif);
+
+    &:hover,
+    &.active {
+      background: var(--chat-accent, #000080);
+      color: var(--chat-text-on-accent, #ffffff);
+    }
+
+    &.static {
+      cursor: default;
+      color: var(--chat-text-muted, #808080);
+
+      &:hover {
+        background: transparent;
+        color: var(--chat-text-muted, #808080);
+      }
+    }
+  }
+}
+
 .context-size-input {
   width: 60px;
   height: 26px;
@@ -951,6 +1071,24 @@ const resetUsage = () => {
   max-height: min(70vh, 70dvh, 560px);
   overflow-y: auto;
   overscroll-behavior: contain;
+
+  &::-webkit-scrollbar {
+    width: var(--scrollbar-size-sm);
+    height: var(--scrollbar-size-sm);
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 2px;
+
+    &:hover {
+      background: var(--scrollbar-thumb-hover);
+    }
+  }
 
   .overflow-menu-section {
     display: flex;
@@ -1398,6 +1536,15 @@ const resetUsage = () => {
   max-height: 62vh;
   overflow-y: auto;
   padding-right: 4px;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--chat-border-soft, rgba(226, 232, 240, 0.9));
+    border-radius: 4px;
+  }
 }
 
 .modal-header {
@@ -1427,6 +1574,20 @@ const resetUsage = () => {
   background: var(--chat-surface, #ffffff);
   border: 2px solid;
   border-color: var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff) var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080);
+
+  &::-webkit-scrollbar {
+    width: var(--scrollbar-size-sm);
+    height: var(--scrollbar-size-sm);
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 2px;
+  }
 }
 
 .modal-text {
@@ -1533,6 +1694,20 @@ const resetUsage = () => {
   background: var(--chat-surface, #ffffff);
   border: 2px solid;
   border-color: var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff) var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080);
+
+  &::-webkit-scrollbar {
+    width: var(--scrollbar-size-sm);
+    height: var(--scrollbar-size-sm);
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 2px;
+  }
 }
 
 .modal-section {

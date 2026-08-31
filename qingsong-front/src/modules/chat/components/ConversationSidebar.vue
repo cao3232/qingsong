@@ -10,9 +10,6 @@
           <h3 class="section-title">聊天记录</h3>
         </div>
         <div class="header-buttons">
-          <button class="refresh-btn" @click="returnHomePage" title="返回首页">
-            <WindowIcon class="refresh-icon" />
-          </button>
           <n-popover :show="showCalendar" placement="right-start" trigger="manual" :show-arrow="false"
             @clickoutside="showCalendar = false">
             <template #trigger>
@@ -26,18 +23,69 @@
                 :is-date-disabled="isDateDisabled" :cell-class="dateCellClass" @update:value="onDateSelected" />
             </n-config-provider>
           </n-popover>
-
-          <button class="refresh-btn" @click="refreshRoles()" title="刷新记录">
-            <ArrowPathIcon class="refresh-icon" />
+          <button class="search-toggle-btn" :class="{ active: searchExpanded }"
+            :title="searchExpanded ? '收起搜索' : '搜索会话 / 消息'" @click="toggleSearch">
+            <MagnifyingGlassIcon class="search-toggle-icon" />
           </button>
           <button class="new-chat-btn" @click="createNewChat()" title="新建会话">
             <PlusIcon class="new-chat-icon" />
           </button>
-          <button class="toggle-delete-btn" :class="{ active: showDeleteButtons }"
-            :title="showDeleteButtons ? '隐藏删除按钮' : '显示删除按钮'" @click="toggleDeleteButtons">
-            <TrashIcon class="toggle-delete-icon" />
-          </button>
+          <!-- 低频操作折叠进「更多」菜单：按钮过多会把标题栏挤压换行撑高 -->
+          <n-popover v-model:show="showMoreMenu" trigger="click" placement="bottom-end" :show-arrow="false"
+            class="chat-workspace-popover" content-class="chat-workspace-popover-content" :content-style="{
+              padding: '4px',
+              background: 'var(--chat-panel, #c0c0c0)',
+              border: '2px solid var(--chat-bevel-shadow, #808080)',
+              borderRadius: 'var(--chat-radius, 0)',
+              boxShadow: 'var(--chat-popover-shadow, 2px 2px 0 rgba(0,0,0,0.25))'
+            }">
+            <template #trigger>
+              <button class="more-menu-btn" :class="{ active: showMoreMenu }" title="更多操作">
+                <EllipsisHorizontalIcon class="more-menu-icon" />
+              </button>
+            </template>
+            <div class="sidebar-more-menu">
+              <button class="more-menu-item" @click="handleMoreAction(openFavoritesPage)">
+                <StarIcon class="more-menu-item-icon" /><span>我的收藏</span>
+              </button>
+              <button class="more-menu-item" @click="handleMoreAction(returnHomePage)">
+                <WindowIcon class="more-menu-item-icon" /><span>返回首页</span>
+              </button>
+              <button class="more-menu-item" @click="handleMoreAction(refreshRoles)">
+                <ArrowPathIcon class="more-menu-item-icon" /><span>刷新记录</span>
+              </button>
+              <button class="more-menu-item" :class="{ active: showDeleteButtons }"
+                @click="handleMoreAction(toggleDeleteButtons)">
+                <TrashIcon class="more-menu-item-icon" /><span>{{ showDeleteButtons ? "隐藏删除按钮" : "显示删除按钮"
+                  }}</span>
+              </button>
+            </div>
+          </n-popover>
         </div>
+      </div>
+
+      <!-- 搜索框默认收起为工具行按钮，点击展开；仅 Esc / × / 再点按钮手动收起（收起即清空） -->
+      <div v-if="searchExpanded" class="history-search-bar">
+        <input ref="searchInputRef" v-model="searchInput" type="text" class="history-search-input"
+          placeholder="搜索会话标题 / 消息内容…" @keydown.esc="collapseSearch" />
+        <button v-if="searchInput" class="clear-search-btn" @click="collapseSearch" title="清除并收起搜索">×</button>
+      </div>
+
+      <!-- 消息内容命中区（仅搜索态显示；会话标题命中即下方列表本身） -->
+      <div v-if="searchKeyword" class="message-search-results">
+        <div class="search-result-header">
+          {{ isSearching ? "正在搜索消息内容…" : `消息内容匹配 ${searchHits.length} 条` }}
+        </div>
+        <template v-for="group in groupedSearchHits" :key="group.sessionNo">
+          <div class="search-result-session" :title="group.sessionTitle">{{ group.sessionTitle || "未命名会话" }}</div>
+          <div v-for="hit in group.hits" :key="hit.messageNo" class="search-hit-item"
+            @click="handleOpenSearchHit(hit)">
+            <span class="hit-role">{{ hit.messageType === "USER" ? "我" : "AI" }}</span>
+            <span class="hit-snippet"><template v-for="(seg, i) in hit.segments" :key="i"><mark
+                v-if="seg.mark">{{ seg.text }}</mark><template v-else>{{ seg.text }}</template></template></span>
+            <span class="hit-time">{{ formatHitTime(hit.createdAt) }}</span>
+          </div>
+        </template>
       </div>
 
       <div v-if="selectedDateFilter" class="date-filter-bar">
@@ -47,7 +95,7 @@
         </button>
       </div>
 
-      <div class="chat-list scrollbar-md">
+      <div class="chat-list">
         <div v-if="filteredChats.length === 0" class="empty-placeholder">
           <div class="empty-icon">
             <ChatBubbleIcon />
@@ -83,6 +131,11 @@
             </button>
           </div>
         </template>
+
+        <!-- 无限滚动哨兵：进入视口即加载下一页（搜索态不分页，搜索结果由接口截断） -->
+        <div v-if="historyHasMore && !searchKeyword" ref="historySentinelRef" class="history-load-more">
+          {{ historyLoadingMore ? "加载中…" : "向下滚动加载更多" }}
+        </div>
       </div>
     </div>
 
@@ -99,7 +152,7 @@
           {{ isPreparingUserMessages ? "整理中" : "查看" }}
         </button>
       </div>
-      <div class="feature-cards scrollbar-sm">
+      <div class="feature-cards">
         <div class="feature-card feature-card-clickable"
           :class="{ active: ragEnabled, 'rag-card-connected': ragEnabled }" @click="handleOpenRag">
           <div class="feature-title">
@@ -147,7 +200,7 @@
             }}
           </span>
         </div>
-        <div class="message-list scrollbar-md">
+        <div class="message-list">
           <div v-if="isPreparingUserMessages" class="loading-placeholder">
             <NSpin size="small" />
             <span>正在加载用户消息...</span>
@@ -193,17 +246,34 @@
             <p>{{ toolsEmptyStateText }}</p>
           </div>
 
-          <div v-else class="tool-group-list scrollbar-sm">
-            <section v-for="group in availableToolGroups" :key="group.groupKey" class="tool-group-section">
-              <button class="tool-group-chip" :class="{ active: isGroupSelected(group.groupKey) }"
-                @click="selectToolGroup(group.groupKey)">
-                <span>{{ group.groupKey }}</span>
-                <span class="tool-group-chip-count">{{ group.tools.length }}</span>
+          <div v-else class="tool-tabs-layout">
+            <!-- 横向分组 Tab：点击仅切换查看，启用/停用在下方面板操作 -->
+            <div class="tool-group-tabs" role="tablist">
+              <button v-for="group in availableToolGroups" :key="group.groupKey" class="tool-group-tab"
+                :class="{ active: group.groupKey === activeToolGroupKey, enabled: isGroupSelected(group.groupKey) }"
+                role="tab" :aria-selected="group.groupKey === activeToolGroupKey" type="button"
+                @click="activeToolGroupKey = group.groupKey">
+                <span class="tool-group-tab-dot" aria-hidden="true"></span>
+                <span class="tool-group-tab-label">{{ group.groupKey }}</span>
+                <span class="tool-group-tab-count">{{ group.tools.length }}</span>
               </button>
+            </div>
+
+            <section v-if="activeToolGroup" :key="activeToolGroup.groupKey" class="tool-group-panel">
+              <div class="tool-group-panel-header">
+                <div class="tool-group-panel-title">
+                  <span class="tool-group-panel-name">{{ activeToolGroup.groupKey }}</span>
+                  <span class="tool-group-panel-count">共 {{ activeToolGroup.tools.length }} 个工具</span>
+                </div>
+                <NButton size="small" :type="isGroupSelected(activeToolGroup.groupKey) ? 'default' : 'primary'"
+                  @click="selectToolGroup(activeToolGroup.groupKey)">
+                  {{ isGroupSelected(activeToolGroup.groupKey) ? "停用该组" : "启用该组全部工具" }}
+                </NButton>
+              </div>
 
               <div class="tool-list">
-                <div v-for="tool in group.tools" :key="tool.key" class="tool-option"
-                  :class="{ selected: isGroupSelected(group.groupKey) }">
+                <div v-for="tool in activeToolGroup.tools" :key="tool.key" class="tool-option"
+                  :class="{ selected: isGroupSelected(activeToolGroup.groupKey) }">
                   <div class="tool-option-main">
                     <div class="tool-option-title-row">
                       <span class="tool-option-title">{{ tool.label }}</span>
@@ -211,8 +281,8 @@
                     </div>
                     <p class="tool-option-desc">{{ tool.description }}</p>
                   </div>
-                  <input class="tool-option-checkbox" type="checkbox" :checked="isGroupSelected(group.groupKey)"
-                    disabled />
+                  <input class="tool-option-checkbox" type="checkbox"
+                    :checked="isGroupSelected(activeToolGroup.groupKey)" disabled />
                 </div>
               </div>
             </section>
@@ -248,7 +318,7 @@
           <p>暂无可用知识库</p>
           <NButton type="primary" size="small" @click="goToKnowledgeBase">去创建</NButton>
         </div>
-        <div v-else class="kb-list scrollbar-sm">
+        <div v-else class="kb-list">
           <div v-for="kb in knowledgeBases" :key="kb.id" class="kb-item"
             :class="{ selected: tempSelectedKB?.id === kb.id }" @click="tempSelectedKB = kb">
             <div class="kb-icon">
@@ -284,7 +354,7 @@
 
 <script setup>
 import { chatAPI, chatKnowledgeAPI } from "../services/index.js";
-import { ref, computed, nextTick, watch, onMounted } from "vue";
+import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from "vue";
 import { useRouter } from "vue-router";
 import {
   useMessage,
@@ -303,11 +373,16 @@ import {
   PlusIcon,
   TrashIcon,
   CalendarDaysIcon,
+  EllipsisHorizontalIcon,
+  MagnifyingGlassIcon,
   WindowIcon,
+  StarIcon,
 } from "@heroicons/vue/24/outline";
 import CalendarIcon from "./icons/CalendarIcon.vue";
 import ChatBubbleIcon from "./icons/ChatBubbleIcon.vue";
 import UserIcon from "./icons/UserIcon.vue";
+import { highlightKeyword } from "../utils/messageSearch.js";
+import { dayRangeOf } from "../utils/chatHistoryPager.js";
 
 const TOOL_GROUP_STORAGE_KEY = "ai-chat-selected-tool-group";
 
@@ -332,9 +407,22 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  // 会话列表分页：是否还有下一页 / 是否正在加载下一页
+  historyHasMore: {
+    type: Boolean,
+    default: false,
+  },
+  historyLoadingMore: {
+    type: Boolean,
+    default: false,
+  },
+  // 有会话记录的日期集合（yyyy-MM-dd），由父组件从 /dates 接口加载
+  historyDates: {
+    type: Array,
+    default: () => [],
+  },
 });
 
-const isRefreshHovered = ref(false);
 const showUserMessagesModal = ref(false);
 const isPreparingUserMessages = ref(false);
 const userMessages = ref([]);
@@ -346,6 +434,8 @@ const isLoadingTools = ref(false);
 const toolsLoadError = ref("");
 const availableToolGroups = ref([]);
 const selectedToolGroupKeys = ref([]);
+// 配置工具弹窗中当前查看的工具分组（横向 Tab），仅控制展示，不影响启用状态
+const activeToolGroupKey = ref("");
 
 if (typeof window !== "undefined") {
   try {
@@ -390,9 +480,13 @@ const emit = defineEmits([
   "load-chat",
   "load-roles",
   "load-history",
+  "load-more-history",
+  "apply-history-filter",
+  "open-chat-at-message",
   "load-latest-chat",
   "jump-to-message",
   "create-new-chat",
+  "remove-chat",
   "rag-change",
 ]);
 
@@ -417,6 +511,37 @@ const selectedGroupLabels = computed(() =>
   availableToolGroups.value
     .filter((group) => isGroupSelected(group.groupKey))
     .map((group) => group.groupKey)
+);
+
+// 当前查看的工具分组：按 key 查找，key 失效时回退到第一组
+const activeToolGroup = computed(() => {
+  const groups = availableToolGroups.value;
+  if (groups.length === 0) {
+    return null;
+  }
+
+  return (
+    groups.find((group) => group.groupKey === activeToolGroupKey.value) ||
+    groups[0]
+  );
+});
+
+// 工具分组数据变化后，初始化/修复当前查看的分组 Tab
+watch(
+  () => availableToolGroups.value,
+  (groups) => {
+    if (!Array.isArray(groups) || groups.length === 0) {
+      activeToolGroupKey.value = "";
+      return;
+    }
+
+    const exists = groups.some(
+      (group) => group.groupKey === activeToolGroupKey.value
+    );
+    if (!exists) {
+      activeToolGroupKey.value = groups[0].groupKey;
+    }
+  }
 );
 
 const toolsModalSubtitle = computed(() => {
@@ -750,21 +875,10 @@ watch(
   }
 );
 
-// 聊天记录（可按日期筛选，默认显示所有记录）
-// 筛选基准为每条会话的 lastMessageAt（无则回退 createdAt），见 availableDateSet / toDateKey
+// 聊天记录展示：日期/关键词过滤已由服务端分页接口处理，这里只补展示字段并排序
+// 排序基准为每条会话的 lastMessageAt（无则回退 createdAt），与后端 COALESCE 口径一致
 const filteredChats = computed(() => {
-  const filterDateKey = selectedDateFilter.value
-    ? toDateKey(selectedDateFilter.value)
-    : null;
-
   return props.chatHistory
-    .filter((chat) => {
-      if (!filterDateKey) {
-        return true;
-      }
-      const chatDateKey = toDateKey(chat?.lastMessageAt ?? chat?.createdAt ?? null);
-      return chatDateKey === filterDateKey;
-    })
     .map((chat) => {
       const date = resolveChatDisplayTime(chat);
       const displayTime = date
@@ -784,7 +898,6 @@ const filteredChats = computed(() => {
       };
     })
     .sort((a, b) => b.numericTimestamp - a.numericTimestamp); // 按数字时间戳倒序排列
-  // .slice(0, 20); // 显示最近20条记录
 });
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -835,7 +948,7 @@ const handleLoadChat = (chatId) => {
   }
   isLoadingChat = true;
 
-  emit("load-chat", chatId, props.selectedRole);
+  emit("load-chat", chatId);
 
   // 短暂延迟后重置状态
   setTimeout(() => {
@@ -911,10 +1024,8 @@ const handleDeleteChat = (chat) => {
             // 删除当前对话：只调用 load-latest-chat（内部会刷新历史记录）
             emit("load-latest-chat");
           } else {
-            // 删除其他对话：稍微延迟后刷新历史，等待后端删除生效
-            setTimeout(() => {
-              emit("load-history");
-            }, 300);
+            // 删除其他对话：本地移除该条目（列表已分页，不再延迟全量重拉历史）
+            emit("remove-chat", chat.id);
           }
         } else {
           message.error("删除失败");
@@ -946,6 +1057,9 @@ const createNewChat = () => {
 };
 const returnHomePage = () => {
   router.push("/");
+};
+const openFavoritesPage = () => {
+  router.push("/chat-favorites");
 };
 
 const showCalendar = ref(false);
@@ -987,6 +1101,14 @@ const selectCalendar = () => {
   }
 };
 
+// 当前生效筛选（关键词 + 日期范围），统一提交给父组件驱动服务端分页查询
+const currentFilter = () => ({
+  keyword: searchInput.value.trim(),
+  ...(selectedDateFilter.value
+    ? dayRangeOf(toDateKey(selectedDateFilter.value))
+    : { start: null, end: null }),
+});
+
 const onDateSelected = (value) => {
   if (!value) {
     return;
@@ -994,6 +1116,8 @@ const onDateSelected = (value) => {
   selectedDateFilter.value = value;
   timestamp.value = value;
   showCalendar.value = false;
+  // 日期筛选走后端：以 [当日, 次日) 范围参数重新查第一页
+  emit("apply-history-filter", currentFilter());
 };
 
 // 统一将 Date / 时间戳数字 / ISO 字符串 转成 'YYYY-MM-DD' 键
@@ -1009,17 +1133,8 @@ const toDateKey = (raw) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 };
 
-// 有会话（按 lastMessageAt）的日期集合，用于日历只可选有记录的日期
-const availableDateSet = computed(() => {
-  const set = new Set();
-  for (const chat of props.chatHistory) {
-    const key = toDateKey(chat?.lastMessageAt ?? chat?.createdAt ?? null);
-    if (key) {
-      set.add(key);
-    }
-  }
-  return set;
-});
+// 有会话记录的日期集合：由父组件从 /dates 接口加载（列表分页后本地不再持有全量）
+const availableDateSet = computed(() => new Set(props.historyDates));
 
 const isDateDisabled = (date) => {
   return !availableDateSet.value.has(toDateKey(date));
@@ -1034,7 +1149,147 @@ const clearDateFilter = () => {
   selectedDateFilter.value = null;
   timestamp.value = null;
   showCalendar.value = false;
+  emit("apply-history-filter", currentFilter());
 };
+
+// —— 搜索状态机：关键词防抖 300ms，同时驱动标题过滤（分页接口 keyword）与消息内容搜索 ——
+const searchInput = ref("");
+const searchKeyword = ref("");
+const searchHits = ref([]);
+const isSearching = ref(false);
+let searchDebounceTimer = null;
+
+watch(searchInput, () => {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    searchKeyword.value = searchInput.value.trim();
+    emit("apply-history-filter", currentFilter());
+    runMessageSearch();
+  }, 300);
+});
+
+const runMessageSearch = async () => {
+  const keyword = searchInput.value.trim();
+  if (!keyword) {
+    searchHits.value = [];
+    return;
+  }
+  isSearching.value = true;
+  try {
+    const hits = await chatAPI.searchChatMessages(keyword, {
+      type: "chat",
+      role: props.selectedRoleName,
+    });
+    searchHits.value = hits.map((hit) => ({
+      ...hit,
+      segments: highlightKeyword(hit.snippet, keyword),
+    }));
+  } finally {
+    isSearching.value = false;
+  }
+};
+
+const clearSearch = () => {
+  searchInput.value = "";
+  searchKeyword.value = "";
+  searchHits.value = [];
+  emit("apply-history-filter", currentFilter());
+};
+
+// —— 搜索框按需展开：默认收起为工具行按钮，点击展开并自动聚焦；仅 Esc / × / 再点按钮手动收起 ——
+const searchExpanded = ref(false);
+const searchInputRef = ref(null);
+
+// 收起即清空：避免收起后列表仍被不可见的关键词过滤
+const collapseSearch = () => {
+  clearSearch();
+  searchExpanded.value = false;
+};
+
+const toggleSearch = async () => {
+  if (searchExpanded.value) {
+    collapseSearch();
+    return;
+  }
+  searchExpanded.value = true;
+  await nextTick();
+  searchInputRef.value?.focus();
+};
+
+// —— 「更多」菜单：收藏/首页/刷新/删除模式等低频操作折叠，避免标题栏按钮过多挤压换行 ——
+const showMoreMenu = ref(false);
+const handleMoreAction = (action) => {
+  showMoreMenu.value = false;
+  action();
+};
+
+// 命中结果按会话分组（保持接口返回的时间倒序）
+const groupedSearchHits = computed(() => {
+  const groups = new Map();
+  for (const hit of searchHits.value) {
+    if (!groups.has(hit.sessionNo)) {
+      groups.set(hit.sessionNo, {
+        sessionNo: hit.sessionNo,
+        sessionTitle: hit.sessionTitle,
+        hits: [],
+      });
+    }
+    groups.get(hit.sessionNo).hits.push(hit);
+  }
+  return Array.from(groups.values());
+});
+
+const handleOpenSearchHit = (hit) => {
+  // 带上关键词：跳转后在消息体内做字符级高亮定位
+  emit("open-chat-at-message", {
+    chatId: hit.sessionNo,
+    messageNo: hit.messageNo,
+    keyword: searchInput.value.trim(),
+  });
+};
+
+const formatHitTime = (value) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString("zh-CN");
+};
+
+// 切角色时静默清空筛选输入（父组件已重置 filter 并重载，这里只清 UI，不再 emit 防双重加载）
+watch(
+  () => props.selectedRoleName,
+  () => {
+    searchInput.value = "";
+    searchKeyword.value = "";
+    searchHits.value = [];
+    selectedDateFilter.value = null;
+    timestamp.value = null;
+  }
+);
+
+// —— 会话列表无限滚动：哨兵进入视口即加载下一页 ——
+const historySentinelRef = ref(null);
+let historyObserver = null;
+
+watch(historySentinelRef, (el) => {
+  if (historyObserver) {
+    historyObserver.disconnect();
+    historyObserver = null;
+  }
+  if (!el) return;
+  historyObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        emit("load-more-history");
+      }
+    },
+    { threshold: 0.1 }
+  );
+  historyObserver.observe(el);
+});
+
+onBeforeUnmount(() => {
+  historyObserver?.disconnect();
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+});
 </script>
 
 <style lang="scss" scoped>
@@ -1086,6 +1341,8 @@ const clearDateFilter = () => {
         display: flex;
         align-items: center;
         gap: 6px;
+        /* 标题侧不收缩：工具按钮增多时由按钮组吸收挤压，标题栏保持单行不被撑高 */
+        flex-shrink: 0;
 
         .header-icon {
           width: 16px;
@@ -1109,6 +1366,8 @@ const clearDateFilter = () => {
           margin: 0;
           font-family: var(--chat-font-family, "MS Sans Serif", "Segoe UI", Tahoma, sans-serif);
           letter-spacing: 0.3px;
+          /* 空间不足时不换行（换行会把标题栏撑成两行高） */
+          white-space: nowrap;
         }
       }
 
@@ -1123,9 +1382,9 @@ const clearDateFilter = () => {
         }
       }
 
-      .refresh-btn,
       .new-chat-btn,
-      .toggle-delete-btn,
+      .search-toggle-btn,
+      .more-menu-btn,
       .calendar-select-btn {
         display: flex;
         align-items: center;
@@ -1152,18 +1411,30 @@ const clearDateFilter = () => {
 
       .refresh-icon,
       .new-chat-icon,
-      .toggle-delete-icon {
+      .more-menu-icon,
+      .search-toggle-icon {
         width: 13px;
         height: 13px;
         color: var(--chat-text, #000000);
       }
 
-      .toggle-delete-btn.active {
-        background: var(--chat-panel, #c0c0c0);
-        border-color: var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080) var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff);
+      /* 搜索展开态：凹陷（pressed）+ 图标高亮，与日历展开态一致 */
+      .search-toggle-btn.active {
+        background: var(--chat-panel-hover, #d4d4d4);
+        border-color: var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff) var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080);
 
-        .toggle-delete-icon {
-          color: var(--chat-danger-text, #800000);
+        .search-toggle-icon {
+          color: var(--chat-accent, #000080);
+        }
+      }
+
+      /* 更多菜单展开态：凹陷（pressed）+ 图标高亮 */
+      .more-menu-btn.active {
+        background: var(--chat-panel-hover, #d4d4d4);
+        border-color: var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff) var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080);
+
+        .more-menu-icon {
+          color: var(--chat-accent, #000080);
         }
       }
 
@@ -1218,6 +1489,24 @@ const clearDateFilter = () => {
       padding-right: 0;
       overflow-y: auto;
       min-height: 0;
+
+      &::-webkit-scrollbar {
+        width: var(--scrollbar-size-sm);
+        height: var(--scrollbar-size-sm);
+      }
+
+      &::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      &::-webkit-scrollbar-thumb {
+        background: var(--scrollbar-thumb);
+        border-radius: 2px;
+
+        &:hover {
+          background: var(--scrollbar-thumb-hover);
+        }
+      }
     }
 
     .feature-card {
@@ -1397,6 +1686,24 @@ const clearDateFilter = () => {
       -webkit-overflow-scrolling: touch;
       background: transparent;
 
+      &::-webkit-scrollbar {
+        width: var(--scrollbar-size-sm);
+        height: var(--scrollbar-size-sm);
+      }
+
+      &::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      &::-webkit-scrollbar-thumb {
+        background: var(--scrollbar-thumb);
+        border-radius: 2px;
+
+        &:hover {
+          background: var(--scrollbar-thumb-hover);
+        }
+      }
+
       .empty-placeholder {
         display: flex;
         flex: 1;
@@ -1452,6 +1759,7 @@ const clearDateFilter = () => {
       }
 
       .chat-item {
+        position: relative;
         display: flex;
         align-items: center;
         gap: 8px;
@@ -1593,6 +1901,11 @@ const clearDateFilter = () => {
         }
 
         .delete-btn {
+          /* 悬浮覆盖在条目右侧，不占布局空间，平时内容可占满整行宽度 */
+          position: absolute;
+          right: 8px;
+          top: 50%;
+          transform: translateY(-50%);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1605,7 +1918,6 @@ const clearDateFilter = () => {
           cursor: pointer;
           transition: none;
           color: var(--chat-danger-text, #800000);
-          margin-left: 2px;
           opacity: 0;
           pointer-events: none;
 
@@ -1706,9 +2018,16 @@ const clearDateFilter = () => {
 }
 
 .chat-sidebar.show-delete-actions {
-  .chat-list .chat-item .delete-btn {
-    opacity: 0.9;
-    pointer-events: auto;
+  .chat-list .chat-item {
+    /* 删除模式下按钮常驻显示，给内容让出右侧空间避免被悬浮按钮遮挡 */
+    .chat-content {
+      padding-right: 26px;
+    }
+
+    .delete-btn {
+      opacity: 0.9;
+      pointer-events: auto;
+    }
   }
 }
 
@@ -1770,6 +2089,19 @@ const clearDateFilter = () => {
         margin: 0;
         font-size: 13px;
       }
+    }
+
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(59, 130, 246, 0.3);
+      border-radius: 2px;
     }
 
     .message-item {
@@ -1844,24 +2176,37 @@ const clearDateFilter = () => {
     color: #64748b;
   }
 
-  .tool-group-list {
+  .tool-tabs-layout {
     display: flex;
     flex-direction: column;
     gap: 12px;
     min-height: 0;
-    max-height: 52vh;
-    overflow-y: auto;
-    padding: 2px 4px;
   }
 
-  .tool-group-section {
+  .tool-group-tabs {
     display: flex;
-    flex-direction: column;
+    align-items: center;
     gap: 8px;
+    overflow-x: auto;
+    padding: 2px 4px 8px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+
+    &::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(14, 165, 233, 0.3);
+      border-radius: 999px;
+    }
   }
 
-  .tool-group-chip {
-    align-self: flex-start;
+  .tool-group-tab {
+    flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -1886,7 +2231,21 @@ const clearDateFilter = () => {
     }
   }
 
-  .tool-group-chip-count {
+  .tool-group-tab-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.45);
+    flex-shrink: 0;
+    transition: background-color 0.18s ease, box-shadow 0.18s ease;
+  }
+
+  .tool-group-tab.enabled .tool-group-tab-dot {
+    background: #0ea5e9;
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.18);
+  }
+
+  .tool-group-tab-count {
     min-width: 18px;
     height: 18px;
     border-radius: 999px;
@@ -1899,10 +2258,63 @@ const clearDateFilter = () => {
     font-size: 10px;
   }
 
+  .tool-group-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+    max-height: 48vh;
+  }
+
+  .tool-group-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+
+  .tool-group-panel-title {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .tool-group-panel-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #0f172a;
+    word-break: break-all;
+  }
+
+  .tool-group-panel-count {
+    font-size: 11px;
+    color: #64748b;
+    white-space: nowrap;
+  }
+
   .tool-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 2px 4px;
+
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(14, 165, 233, 0.3);
+      border-radius: 999px;
+    }
   }
 
   .tool-option {
@@ -2036,6 +2448,19 @@ const clearDateFilter = () => {
     max-height: 400px;
     overflow-y: auto;
     padding: 4px;
+
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(99, 102, 241, 0.3);
+      border-radius: 2px;
+    }
   }
 
   .kb-item {
@@ -2185,6 +2610,173 @@ const clearDateFilter = () => {
   }
 }
 
+/* 「更多」折叠菜单（NPopover teleport 到 body，菜单项仍带本组件 scoped 标识，样式可命中） */
+.sidebar-more-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 132px;
+
+  .more-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 5px 8px;
+    font-size: 12px;
+    text-align: left;
+    color: var(--chat-text, #000000);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--chat-radius, 0);
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: var(--chat-font-family, "MS Sans Serif", "Segoe UI", Tahoma, sans-serif);
+
+    /* 开启中的模式（如删除模式）给红色提示，hover 态优先级更高 */
+    &.active {
+      color: var(--chat-danger-text, #800000);
+    }
+
+    &:hover {
+      background: var(--chat-accent, #000080);
+      color: var(--chat-text-on-accent, #ffffff);
+    }
+
+    .more-menu-item-icon {
+      width: 13px;
+      height: 13px;
+      flex-shrink: 0;
+    }
+  }
+}
+
+/* 会话搜索框（retro 凹陷输入框） */
+.history-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 4px 2px;
+
+  .history-search-input {
+    flex: 1;
+    min-width: 0;
+    height: 24px;
+    padding: 0 6px;
+    font-size: 11px;
+    font-family: var(--chat-font-family, "MS Sans Serif", "Segoe UI", Tahoma, sans-serif);
+    color: var(--chat-text, #000000);
+    background: var(--chat-input-bg, #ffffff);
+    border: 2px solid;
+    border-color: var(--chat-inset-shadow, #808080) var(--chat-inset-light, #ffffff) var(--chat-inset-light, #ffffff) var(--chat-inset-shadow, #808080);
+    border-radius: var(--chat-radius, 0);
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  .clear-search-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: bold;
+    line-height: 1;
+    color: var(--chat-danger-text, #800000);
+    background: var(--chat-panel, #c0c0c0);
+    border: 2px solid;
+    border-color: var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080) var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff);
+    border-radius: var(--chat-radius, 0);
+
+    &:active {
+      border-color: var(--chat-bevel-shadow, #808080) var(--chat-bevel-light, #ffffff) var(--chat-bevel-light, #ffffff) var(--chat-bevel-shadow, #808080);
+    }
+  }
+}
+
+/* 消息内容搜索结果区 */
+.message-search-results {
+  max-height: 40%;
+  overflow-y: auto;
+  margin: 2px 4px;
+  border: 2px solid;
+  border-color: var(--chat-inset-shadow, #808080) var(--chat-inset-light, #ffffff) var(--chat-inset-light, #ffffff) var(--chat-inset-shadow, #808080);
+  border-radius: var(--chat-radius, 0);
+  background: var(--chat-input-bg, #ffffff);
+
+  .search-result-header {
+    padding: 4px 6px;
+    font-size: 10px;
+    color: var(--chat-text-dim, #444444);
+    border-bottom: 1px solid var(--chat-bevel-shadow, #808080);
+  }
+
+  .search-result-session {
+    padding: 3px 6px 1px;
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--chat-text, #000000);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .search-hit-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 6px;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--chat-text, #000000);
+
+    &:hover {
+      background: var(--chat-active-bg, #000080);
+      color: var(--chat-text-on-accent, #ffffff);
+
+      mark {
+        color: #000000;
+      }
+    }
+
+    .hit-role {
+      flex-shrink: 0;
+      font-weight: bold;
+    }
+
+    .hit-snippet {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .hit-time {
+      flex-shrink: 0;
+      opacity: 0.7;
+      font-size: 10px;
+    }
+
+    mark {
+      background: var(--chat-favorite-on, #ffff00);
+      color: inherit;
+      padding: 0;
+    }
+  }
+}
+
+/* 无限滚动加载更多哨兵 */
+.history-load-more {
+  text-align: center;
+  padding: 6px;
+  font-size: 10px;
+  color: var(--chat-text-dim, #444444);
+}
+
 .date-filter-bar {
   display: flex;
   align-items: center;
@@ -2198,7 +2790,6 @@ const clearDateFilter = () => {
   color: var(--chat-text-on-accent, #ffffff);
   font-size: 10px;
   font-family: var(--chat-font-family, "MS Sans Serif", "Segoe UI", Tahoma, sans-serif);
-
   .date-filter-text {
     flex: 1;
     min-width: 0;

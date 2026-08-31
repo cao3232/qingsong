@@ -31,14 +31,6 @@ public interface KnowledgeBaseService extends IService<KnowledgeBase> {
     List<KnowledgeBase> searchByKeyword(String keyword);
 
     /**
-     * 统计每个知识库的文档数量
-     *
-     * @param knowledgeId 知识库 ID
-     * @return 文档数量
-     */
-    Long countDocuments(Long knowledgeId);
-
-    /**
      * 批量更新知识库状态
      *
      * @param ids      知识库 ID 列表

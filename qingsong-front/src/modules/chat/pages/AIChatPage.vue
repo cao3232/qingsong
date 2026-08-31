@@ -1,10 +1,13 @@
   <template>
   <div
-    class="ai-chat-view scrollbar-md"
+    class="ai-chat-view"
     :class="{
       'sidebar-collapsed': sidebarCollapsed,
       'role-panel-expanded': !rolePanelCollapsed,
-      'chat-skin-cloud-immortal': isCloudImmortal
+      'chat-skin-cloud-immortal': isCloudImmortal,
+      'chat-skin-deep-sea': isDeepSea,
+      'chat-skin-pixel': isPixel,
+      'chat-skin-sky': isSky
     }"
   >
     <div v-if="isCloudImmortal" class="immortal-scene" aria-hidden="true">
@@ -15,6 +18,25 @@
       <div class="immortal-bagua"></div>
       <div class="immortal-cloud-seal"></div>
       <div class="immortal-rune"></div>
+    </div>
+    <div v-if="isDeepSea" class="deep-sea-scene" aria-hidden="true">
+      <div class="deep-sea-ray deep-sea-ray-a"></div>
+      <div class="deep-sea-ray deep-sea-ray-b"></div>
+      <div class="deep-sea-bubbles">
+        <i v-for="n in 12" :key="n"></i>
+      </div>
+      <div class="deep-sea-porthole"></div>
+    </div>
+    <div v-if="isPixel" class="pixel-scene" aria-hidden="true">
+      <div class="pixel-scanlines"></div>
+      <div class="pixel-star pixel-star-a"></div>
+      <div class="pixel-star pixel-star-b"></div>
+    </div>
+    <div v-if="isSky" class="sky-scene" aria-hidden="true">
+      <div class="sky-sun"></div>
+      <div class="sky-cloud sky-cloud-a"></div>
+      <div class="sky-cloud sky-cloud-b"></div>
+      <div class="sky-cloud sky-cloud-c"></div>
     </div>
     <div class="role-drawer-host">
       <RoleSidebar
@@ -59,12 +81,19 @@
           :chat-history="chatHistory"
           :current-chat-id="currentChatId"
           :current-messages="currentMessages"
+          :history-has-more="historyHasMore"
+          :history-loading-more="historyLoadingMore"
+          :history-dates="historyDates"
           @load-chat="loadChat"
           @load-roles="loadRoles"
           @load-history="loadChatHistory(false)"
+          @load-more-history="loadMoreHistory"
+          @apply-history-filter="applyHistoryFilter"
           @load-latest-chat="loadLatestChat"
           @jump-to-message="handleJumpToMessage"
+          @open-chat-at-message="openChatAtMessage"
           @create-new-chat="startNewChat"
+          @remove-chat="removeChatFromHistory"
           @rag-change="handleRagChange"
         />
       </div>
@@ -77,7 +106,6 @@
           :selected-role="selectedRole"
           :current-chat-id="currentChatId"
           :current-chat-name="currentChatName"
-          :chat-history="chatHistory"
           :switch-conversation="switchConversation"
           :selected-role-name="selectedRoleName"
           :sidebar-collapsed="sidebarCollapsed"
@@ -101,13 +129,22 @@
 import { computed, onBeforeUnmount, watch } from 'vue'
 import { useThemeStore } from '../../../stores/theme.js'
 import { RoleSidebar, ConversationSidebar, ChatWorkspace } from '../components/index.js'
-import { useAIChatPage } from '../composables/index.js'
+import { useAIChatPage, useChatRouteSync } from '../composables/index.js'
 import '../../../shared/styles/common.scss'
 import '../themes/cloudImmortal.scss'
+import '../themes/deepSea.scss'
+import '../themes/pixel.scss'
+import '../themes/sky.scss'
 
 const themeStore = useThemeStore()
 const isCloudImmortal = computed(() => themeStore.config.chatSkin === 'cloud-immortal')
+const isDeepSea = computed(() => themeStore.config.chatSkin === 'deep-sea')
+const isPixel = computed(() => themeStore.config.chatSkin === 'pixel')
+const isSky = computed(() => themeStore.config.chatSkin === 'sky')
 const overlayThemeClass = 'chat-skin-cloud-immortal-overlays'
+const deepSeaOverlayClass = 'chat-skin-deep-sea-overlays'
+const pixelOverlayClass = 'chat-skin-pixel-overlays'
+const skyOverlayClass = 'chat-skin-sky-overlays'
 
 watch(isCloudImmortal, enabled => {
   if (typeof document === 'undefined') return
@@ -118,16 +155,45 @@ watch(isCloudImmortal, enabled => {
   }
 }, { immediate: true })
 
+watch(isDeepSea, enabled => {
+  if (typeof document === 'undefined') return
+  document.body.classList.toggle(deepSeaOverlayClass, enabled)
+  if (enabled) document.body.setAttribute('data-chat-skin', 'deep-sea')
+  else if (document.body.getAttribute('data-chat-skin') === 'deep-sea') {
+    document.body.removeAttribute('data-chat-skin')
+  }
+}, { immediate: true })
+
+watch(isPixel, enabled => {
+  if (typeof document === 'undefined') return
+  document.body.classList.toggle(pixelOverlayClass, enabled)
+  if (enabled) document.body.setAttribute('data-chat-skin', 'pixel')
+  else if (document.body.getAttribute('data-chat-skin') === 'pixel') {
+    document.body.removeAttribute('data-chat-skin')
+  }
+}, { immediate: true })
+
+watch(isSky, enabled => {
+  if (typeof document === 'undefined') return
+  document.body.classList.toggle(skyOverlayClass, enabled)
+  if (enabled) document.body.setAttribute('data-chat-skin', 'sky')
+  else if (document.body.getAttribute('data-chat-skin') === 'sky') {
+    document.body.removeAttribute('data-chat-skin')
+  }
+}, { immediate: true })
+
 onBeforeUnmount(() => {
   if (typeof document === 'undefined') return
-  document.body.classList.remove(overlayThemeClass)
-  if (document.body.getAttribute('data-chat-skin') === 'cloud-immortal') {
+  document.body.classList.remove(overlayThemeClass, deepSeaOverlayClass, pixelOverlayClass, skyOverlayClass)
+  const skin = document.body.getAttribute('data-chat-skin')
+  if (skin === 'cloud-immortal' || skin === 'deep-sea' || skin === 'pixel' || skin === 'sky') {
     document.body.removeAttribute('data-chat-skin')
   }
 })
 
 const {
   appendMessage,
+  applyHistoryFilter,
   cancelStreaming,
   chatHistory,
   currentChatId,
@@ -140,12 +206,20 @@ const {
   handleRolesUpdated,
   handleSessionDeleted,
   handleUpdateChatName,
+  historyDates,
+  historyHasMore,
+  historyLoadingMore,
+  initDefaultChat,
   isStreaming,
   loadChat,
   loadChatHistory,
+  loadHistoryDates,
   loadLatestChat,
+  loadMoreHistory,
   loadRoles,
+  openChatAtMessage,
   ragEnabled,
+  removeChatFromHistory,
   rolePanelCollapsed,
   roleStats,
   roles,
@@ -160,15 +234,41 @@ const {
   updateCurrentMessages
 } = useAIChatPage()
 
+// URL ↔ 聊天状态双向同步：会话分离 + 后退回首页（内部用 router.replace 不增历史栈）
+useChatRouteSync({
+  selectedRole,
+  selectedRoleName,
+  currentChatId,
+  currentMessages,
+  chatHistory,
+  roles,
+  loadRoles,
+  loadChat,
+  loadChatHistory,
+  loadHistoryDates,
+  loadLatestChat,
+  initDefaultChat,
+  handleJumpToMessage
+})
+
 // 会话已推进导致重试被拒：重新拉取当前会话的服务端消息，让界面回到最新状态
 const handleRefreshSession = () => {
   const chatId = currentChatId.value
   if (!chatId) {
     return
   }
-  loadChat(chatId)
+  loadChat(chatId, { force: true })
 }
 </script>
+
+<style>
+/* 搜索跳转的字符级高亮：CSS Custom Highlight API 的全局注册表（CSS.highlights），
+   不能放 scoped（::highlight 命中的不是带 data-v 属性的元素） */
+::highlight(chat-search-hit) {
+  background-color: var(--chat-favorite-on, #ffff00);
+  color: #000000;
+}
+</style>
 
 <style scoped>
 /* ===== RETRO OS 90s DESKTOP STYLE ===== */
@@ -177,6 +277,8 @@ const handleRefreshSession = () => {
   display: flex;
   height: 100vh;
   height: 100dvh;
+  /* 缩放场景下聊天页面滚动条更细：覆盖全局 4px 的 --scrollbar-size-sm，子组件滚动条继承为 2px */
+  --scrollbar-size-sm: 2px;
   /* Teal wallpaper - classic 90s desktop */
   background: var(--chat-wallpaper, #008080);
   background-image:
@@ -581,5 +683,25 @@ const handleRefreshSession = () => {
 @keyframes retroBlink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
+}
+
+/* 标准 scrollbar-width: thin 对 Chrome overlay 滚动条同样生效(topic-tracker 的 .scrollbar-sm 即此法) */
+.ai-chat-view :deep(*) {
+  scrollbar-width: thin;
+}
+
+/* Retro scrollbar override → 现代细滚动条(用户要求统一) */
+.chat-container :deep(*::-webkit-scrollbar) {
+  width: var(--scrollbar-size-sm);
+  height: var(--scrollbar-size-sm);
+}
+
+.chat-container :deep(*::-webkit-scrollbar-track) {
+  background: transparent;
+}
+
+.chat-container :deep(*::-webkit-scrollbar-thumb) {
+  background: var(--scrollbar-thumb);
+  border-radius: 2px;
 }
 </style>

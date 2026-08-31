@@ -114,7 +114,7 @@
           </div>
         </div>
 
-        <div class="list scrollbar-md">
+        <div class="list custom-scrollbar">
           <section v-for="section in visibleSections" :key="section.key" class="section">
             <div class="section-head">
               <span>{{ section.label }}</span>
@@ -1100,6 +1100,24 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   padding: 4px;
   background: var(--chat-panel, #c0c0c0);
+
+  &::-webkit-scrollbar {
+    width: var(--scrollbar-size-sm);
+    height: var(--scrollbar-size-sm);
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 2px;
+
+    &:hover {
+      background: var(--scrollbar-thumb-hover);
+    }
+  }
 }
 
 .section + .section {

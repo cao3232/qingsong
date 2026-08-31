@@ -70,6 +70,7 @@
 <script setup>
 import { NModal, NButton, NSwitch, useMessage } from 'naive-ui'
 import { computed, nextTick, ref, watch } from 'vue'
+import { readShareCardSettings, writeShareCardSettings } from '../utils/shareCardSettings.js'
 
 const props = defineProps({
   show: {
@@ -113,9 +114,18 @@ const messageApi = useMessage()
 const cardRef = ref(null)
 const cardBodyRef = ref(null)
 const generating = ref(false)
-const showHeader = ref(true)
-const showFooter = ref(true)
-const showPrevious = ref(false)
+const persistedShareSettings = readShareCardSettings()
+const showHeader = ref(persistedShareSettings.showHeader)
+const showFooter = ref(persistedShareSettings.showFooter)
+const showPrevious = ref(persistedShareSettings.showPrevious)
+
+watch([showHeader, showFooter, showPrevious], () => {
+  writeShareCardSettings({
+    showHeader: showHeader.value,
+    showFooter: showFooter.value,
+    showPrevious: showPrevious.value
+  })
+})
 let htmlToImageModule = null
 
 const previousText = computed(() => {
@@ -379,8 +389,10 @@ const copyImage = async () => {
   width: 640px;
   max-width: 100%;
   box-sizing: border-box;
-  background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
-  padding: 28px 32px 24px;
+  background: linear-gradient(180deg, #ffffff 0%, #fefdfa 100%);
+  padding: 40px 48px 36px;
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04), 0 6px 24px rgba(15, 23, 42, 0.06);
   font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   color: #1f2937;
 }
@@ -454,21 +466,24 @@ const copyImage = async () => {
 .share-card-divider {
   height: 1px;
   margin: 18px 0;
-  background: linear-gradient(to right, #e2e8f0, rgba(226, 232, 240, 0.4));
+  background: linear-gradient(to right, rgba(148, 163, 184, 0.16), rgba(226, 232, 240, 0.34));
 }
 
 .share-card-body {
   font-size: 15px;
-  line-height: 1.68;
+  line-height: 1.75;
   overflow-wrap: anywhere;
   word-break: break-word;
   color: #314155;
+  text-align: justify;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 
   :deep(*) {
     box-sizing: border-box;
   }
 
-  // 克隆进来的消息内容：抹掉聊天气泡背景，统一成白底卡片排版
+  // 克隆进来的消息内容：抹掉聊天气泡背景，统一成文档排版
   :deep(.ai-text),
   :deep(.user-text) {
     background: transparent;
@@ -478,11 +493,21 @@ const copyImage = async () => {
     max-width: none;
     width: 100%;
     white-space: normal;
+    text-align: justify;
   }
 
   :deep(.user-text) {
     color: #314155;
     white-space: pre-wrap;
+    text-align: left;
+  }
+
+  :deep(> :first-child) {
+    margin-top: 0 !important;
+  }
+
+  :deep(> :last-child) {
+    margin-bottom: 0 !important;
   }
 
   :deep(.emoji-img),
@@ -501,26 +526,256 @@ const copyImage = async () => {
     height: auto;
   }
 
-  // 让 markdown 内容不再受气泡容器影响
-  :deep(h1),
-  :deep(h2),
-  :deep(h3),
-  :deep(h4),
-  :deep(h5),
-  :deep(h6) {
+  // 标题层级
+  :deep(h1) {
+    margin-top: 18px;
+    margin-bottom: 10px;
+    font-weight: 700;
+    font-size: 20px;
+    line-height: 1.3;
     color: #0f172a;
   }
 
+  :deep(h2) {
+    margin-top: 16px;
+    margin-bottom: 10px;
+    font-weight: 700;
+    font-size: 17px;
+    line-height: 1.35;
+    color: #111827;
+    border-bottom: 1px solid rgba(100, 116, 139, 0.18);
+    padding-bottom: 5px;
+  }
+
+  :deep(h3) {
+    margin-top: 14px;
+    margin-bottom: 8px;
+    font-weight: 700;
+    font-size: 15px;
+    line-height: 1.45;
+    color: #1f3b57;
+  }
+
+  :deep(h4) {
+    margin-top: 12px;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 1.5;
+    color: #1f2937;
+  }
+
+  :deep(h5),
+  :deep(h6) {
+    margin-top: 10px;
+    margin-bottom: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #374151;
+  }
+
+  // 段落
   :deep(p) {
+    margin: 0 0 12px;
+    line-height: 1.75;
+    font-size: 15px;
     color: #314155;
   }
 
-  :deep(pre) {
-    border-radius: 12px;
-    overflow: visible !important;
+  :deep(li > p) {
+    margin: 2px 0;
   }
 
-  // 代码块/表格：横向溢出时由 JS 等比缩放（fitWideElements），不换行不滚动
+  // 列表
+  :deep(ul) {
+    margin: 8px 0;
+    padding-left: 1.3em;
+    list-style: disc;
+    font-size: 15px;
+  }
+
+  :deep(ol) {
+    margin: 8px 0;
+    padding-left: 1.4em;
+    list-style: decimal;
+  }
+
+  :deep(ul ul),
+  :deep(ul ol),
+  :deep(ol ul),
+  :deep(ol ol) {
+    margin: 4px 0 0;
+  }
+
+  :deep(ul ul) {
+    list-style-type: circle;
+  }
+
+  :deep(ul ul ul) {
+    list-style-type: square;
+  }
+
+  :deep(ol ol) {
+    list-style-type: lower-alpha;
+  }
+
+  :deep(ol ol ol) {
+    list-style-type: lower-roman;
+  }
+
+  :deep(li) {
+    margin: 3px 0;
+    line-height: 1.6;
+    color: #314155;
+  }
+
+  :deep(ul li::marker),
+  :deep(ol li::marker) {
+    color: #36536b;
+    font-weight: 700;
+  }
+
+  // 任务列表
+  :deep(li:has(input[type="checkbox"])) {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    margin-left: -1.4em;
+    list-style: none;
+  }
+
+  :deep(li:has(input[type="checkbox"]) > input[type="checkbox"]) {
+    margin-top: 0.35em;
+    flex-shrink: 0;
+    accent-color: #3b82f6;
+    pointer-events: none;
+  }
+
+  // 强调与删除线
+  :deep(strong) {
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  :deep(em) {
+    font-style: italic;
+    color: #334155;
+  }
+
+  :deep(del),
+  :deep(s) {
+    text-decoration: line-through;
+    color: #9ca3af;
+    opacity: 0.85;
+  }
+
+  // 链接
+  :deep(a) {
+    color: #1d4ed8;
+    text-decoration: underline;
+    text-decoration-color: rgba(29, 78, 216, 0.24);
+    text-underline-offset: 0.2em;
+    word-break: break-word;
+  }
+
+  // 引用块
+  :deep(blockquote) {
+    margin: 10px 0;
+    padding: 9px 14px;
+    border-left: 2px solid #54708a;
+    background: #f8fafc;
+    border-radius: 0 10px 10px 0;
+    color: #475569;
+  }
+
+  :deep(blockquote p) {
+    margin: 0 !important;
+  }
+
+  :deep(blockquote p + p) {
+    margin-top: 6px !important;
+  }
+
+  // 水平线
+  :deep(hr) {
+    border: none;
+    height: 1px;
+    margin: 18px 0;
+    background: linear-gradient(to right, transparent, #cbd5e1, transparent);
+  }
+
+  // 行内代码
+  :deep(code) {
+    display: inline;
+    background: #f8fafc !important;
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-size: 0.86em;
+    font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+    color: #b42318;
+    font-weight: 600;
+    line-height: 1.4;
+    border: 1px solid rgba(203, 213, 225, 0.9);
+  }
+
+  // 代码块（深墨底 + 头部语言标签，隐藏复制按钮）
+  :deep(.code-block-wrapper) {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    margin: 10px 0;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #1e293b;
+  }
+
+  :deep(.code-block-wrapper .code-header) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 14px;
+    background: rgba(148, 163, 184, 0.08);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  }
+
+  :deep(.code-block-wrapper .code-lang) {
+    font-size: 11px;
+    color: #94a3b8;
+    font-weight: 500;
+  }
+
+  :deep(.code-block-wrapper .code-copy-btn) {
+    display: none;
+  }
+
+  :deep(pre) {
+    width: 100%;
+    margin: 0;
+    background: #1e293b !important;
+    padding: 14px 18px;
+    border-radius: 0;
+    overflow: visible !important;
+    box-sizing: border-box;
+  }
+
+  :deep(pre code) {
+    display: block;
+    padding: 0;
+    background: transparent !important;
+    border: none;
+    color: #e2e8f0;
+    font-size: 13px;
+    font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+    line-height: 1.6;
+    white-space: pre;
+    word-break: normal;
+    font-weight: 400;
+  }
+
+  // 宽元素缩放支撑（fitWideElements 依赖）
   :deep(.code-block-wrapper),
   :deep(pre),
   :deep(.table-wrapper) {
@@ -537,30 +792,136 @@ const copyImage = async () => {
     white-space: pre !important;
   }
 
-  // 隐藏表格横向滚动条与「左右滑动查看更多」提示（缩放后无需滚动）
+  // 表格
   :deep(.table-wrapper) {
-    overflow: visible !important;
-  }
-
-  :deep(.table-wrapper::-webkit-scrollbar) {
-    display: none !important;
-  }
-
-  :deep(.table-overflow)::before {
-    display: none !important;
-  }
-
-  :deep(.image-wrapper),
-  :deep(img:not(.twemoji-img):not(.emoji-img)) {
+    width: 100%;
     max-width: 100%;
+    box-sizing: border-box;
+    margin: 10px 0;
+    overflow: visible !important;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+  }
+
+  :deep(table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  :deep(th),
+  :deep(td) {
+    border: 1px solid #e5e7eb;
+    padding: 8px 11px;
+    vertical-align: middle;
+  }
+
+  :deep(thead th) {
+    background: #f8fafc;
+    font-weight: 600;
+    color: #334155;
+    text-align: center;
+  }
+
+  :deep(tbody td) {
+    color: #334155;
+    text-align: left;
+  }
+
+  :deep(tbody tr:nth-child(even)) {
+    background: #fbfdff;
+  }
+
+  // 公式（KaTeX）
+  :deep(.math-block) {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    margin: 12px 0;
+    padding: 10px 14px;
+    overflow-x: auto;
+    text-align: center;
+    background: rgba(99, 102, 241, 0.04);
+    border: 1px solid rgba(99, 102, 241, 0.15);
+    border-radius: 10px;
+  }
+
+  :deep(.math-block .katex) {
+    font-size: 1.05em;
+  }
+
+  :deep(.math-error) {
+    color: #dc2626;
+    background: #fef2f2;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+
+  // 图片
+  :deep(.image-wrapper) {
+    margin: 12px 0;
+    border-radius: 8px;
+    overflow: hidden;
+    min-height: 80px;
+    background-color: #f8fafc;
+    border: 1px solid rgba(226, 232, 240, 0.9);
   }
 
   :deep(img:not(.twemoji-img):not(.emoji-img)) {
     display: block;
+    max-width: 100%;
     height: auto;
     object-fit: contain;
   }
 
+  // Mermaid 流程图：整幅铺开、按卡宽缩放，禁止内部滚动/裁剪
+  :deep(.mermaid-block) {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    margin: 12px 0;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+    padding: 12px;
+  }
+
+  :deep(.mermaid-block .mermaid-render) {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 100%;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  :deep(.mermaid-block .mermaid-render svg) {
+    display: block;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    margin-inline: auto;
+  }
+
+  :deep(.mermaid-block .mermaid-toolbar) {
+    display: none;
+  }
+
+  :deep(.mermaid-block .mermaid-source.hidden) {
+    display: none !important;
+  }
+
+  // 标题锚点链接在分享卡片中隐藏
+  :deep(.heading-link) {
+    display: none;
+  }
+
+  // 禁交互 + 隐藏流式/折叠元素
   :deep(button),
   :deep(a) {
     pointer-events: none;
@@ -578,7 +939,8 @@ const copyImage = async () => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  font-size: 12px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
   color: #9ca3af;
 }
 
@@ -621,8 +983,8 @@ const copyImage = async () => {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 10px 14px;
-  border-radius: 10px;
+  padding: 12px 16px;
+  border-radius: 8px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   font-size: 14px;
@@ -642,7 +1004,7 @@ const copyImage = async () => {
   height: 22px;
   margin-top: 2px;
   border-radius: 50%;
-  background: #3b82f6;
+  background: #1f3b57;
   color: #fff;
   font-size: 12px;
   font-weight: 700;

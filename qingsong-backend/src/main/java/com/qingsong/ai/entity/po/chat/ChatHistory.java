@@ -65,6 +65,11 @@ public class ChatHistory {
     private LocalDateTime lastMessageAt;
 
     /**
+     * 会话状态（ACTIVE / escalated / DELETED），客服场景用于透出「已转人工」标记。
+     */
+    private String status;
+
+    /**
      * 标识该缓存项是否表示“会话存在”。
      * false 表示空值缓存，命中后可直接跳过数据库查询。
      */

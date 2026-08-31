@@ -52,6 +52,9 @@ const router = useRouter()
 const message = useMessage()
 const themeStore = useThemeStore()
 
+// 暴露 message 实例到 window，供 http 拦截器等服务层在 setup 外复用（Naive UI 官方推荐方案）
+;(window as Window & { $message?: typeof message }).$message = message
+
 const isHomePage = computed(() => route.path === '/')
 
 // 账户头像文字：取登录账号首字符，无登录态时显示默认图标

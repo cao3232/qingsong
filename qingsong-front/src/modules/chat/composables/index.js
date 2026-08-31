@@ -1,4 +1,6 @@
 export { useAIChatPage } from './useAIChatPage.js'
+export { useChatRouteSync } from './useChatRouteSync.js'
 export { useChatWorkspace } from './useChatWorkspace.js'
 export { useTtsPlayback } from './useTtsPlayback.js'
+export { useFavoriteMessages } from './useFavoriteMessages.js'
 export { usePdfReaderPage } from './usePdfReaderPage.js'

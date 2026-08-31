@@ -1,0 +1,177 @@
+// 深海皮肤：「潜水舱」场景层与签名细节。
+// 配色由 theme.js skinPresets['deep-sea'] 的 --chat-* 变量驱动（基础组件已消费变量），
+// 本文件只负责结构性装饰：水深渐变、海面光束、上浮气泡群、舷窗水印、标题栏深度计。
+
+.ai-chat-view.chat-skin-deep-sea {
+  position: relative;
+  isolation: isolate;
+  // 水深渐变：上明下暗，营造下潜感（与 --chat-wallpaper 同色系）
+  background: linear-gradient(180deg, #10374f 0%, #0d2436 55%, #081826 100%) !important;
+  color: var(--chat-text, #d9ecf7);
+  font-family: var(--chat-font-family);
+}
+
+.chat-skin-deep-sea .deep-sea-scene {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+// --- 海面光束：顶部斜射光带，缓慢摆动 ---
+.chat-skin-deep-sea .deep-sea-ray {
+  position: absolute;
+  top: -12%;
+  height: 72%;
+  width: 16vw;
+  min-width: 120px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(125, 211, 252, 0.16), rgba(125, 211, 252, 0.02) 78%, transparent);
+  filter: blur(6px);
+  transform-origin: top center;
+}
+.chat-skin-deep-sea .deep-sea-ray-a {
+  left: 12%;
+  transform: rotate(14deg);
+  animation: deep-sea-ray-sway-a 11s ease-in-out infinite alternate;
+}
+.chat-skin-deep-sea .deep-sea-ray-b {
+  left: 34%;
+  width: 10vw;
+  opacity: 0.7;
+  transform: rotate(9deg);
+  animation: deep-sea-ray-sway-b 14s ease-in-out infinite alternate;
+}
+
+// --- 上浮气泡群：12 个 <i>，大小/位置/时长/延迟错落 ---
+.chat-skin-deep-sea .deep-sea-bubbles {
+  position: absolute;
+  inset: 0;
+}
+.chat-skin-deep-sea .deep-sea-bubbles i {
+  position: absolute;
+  bottom: -24px;
+  display: block;
+  border-radius: 50%;
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  background: radial-gradient(circle at 32% 30%, rgba(214, 245, 255, 0.5), rgba(125, 211, 252, 0.08) 62%);
+  opacity: 0;
+  animation: deep-sea-bubble-rise linear infinite;
+}
+.chat-skin-deep-sea .deep-sea-bubbles i:nth-child(1)  { left: 6%;  width: 10px; height: 10px; animation-duration: 9s;  animation-delay: 0s; }
+.chat-skin-deep-sea .deep-sea-bubbles i:nth-child(2)  { left: 14%; width: 6px;  height: 6px;  animation-duration: 12s; animation-delay: 2.2s; }
+.chat-skin-deep-sea .deep-sea-bubbles i:nth-child(3)  { left: 23%; width: 14px; height: 14px; animation-duration: 10s; animation-delay: 5.1s; }
+.chat-skin-deep-sea .deep-sea-bubbles i:nth-child(4)  { left: 31%; width: 7px;  height: 7px;  animation-duration: 13s; animation-delay: 1.4s; }
+.chat-skin-deep-sea .deep-sea-bubbles i:nth-child(5)  { left: 42%; width: 9px;  height: 9px;  animation-duration: 11s; animation-delay: 6.8s; }
+.chat-skin-deep-sea .deep-sea-bubbles i:nth-child(6)  { left: 50%; width: 5px;  height: 5px;  animation-duration: 8s;  animation-delay: 3.3s; }
+.chat-skin-deep-sea .deep-sea-bubbles i:nth-child(7)  { left: 58%; width: 12px; height: 12px; animation-duration: 14s; animation-delay: 0.9s; }
+.chat-skin-deep-sea .deep-sea-bubbles i:nth-child(8)  { left: 66%; width: 6px;  height: 6px;  animation-duration: 9.5s; animation-delay: 4.6s; }
+.chat-skin-deep-sea .deep-sea-bubbles i:nth-child(9)  { left: 74%; width: 10px; height: 10px; animation-duration: 12.5s; animation-delay: 7.5s; }
+.chat-skin-deep-sea .deep-sea-bubbles i:nth-child(10) { left: 82%; width: 7px;  height: 7px;  animation-duration: 10.5s; animation-delay: 2.8s; }
+.chat-skin-deep-sea .deep-sea-bubbles i:nth-child(11) { left: 89%; width: 13px; height: 13px; animation-duration: 15s; animation-delay: 5.9s; }
+.chat-skin-deep-sea .deep-sea-bubbles i:nth-child(12) { left: 95%; width: 5px;  height: 5px;  animation-duration: 8.5s; animation-delay: 1.1s; }
+
+// --- 舷窗水印：右下大号圆形双线框 + 十字刻度 ---
+.chat-skin-deep-sea .deep-sea-porthole {
+  position: absolute;
+  right: -70px;
+  bottom: -70px;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  border: 10px solid rgba(56, 189, 248, 0.07);
+  box-shadow: inset 0 0 0 2px rgba(56, 189, 248, 0.12), inset 0 0 60px rgba(14, 116, 144, 0.12);
+  opacity: 0.8;
+}
+.chat-skin-deep-sea .deep-sea-porthole::before {
+  content: '';
+  position: absolute;
+  inset: 24px;
+  border-radius: 50%;
+  border: 1px dashed rgba(125, 211, 252, 0.16);
+}
+.chat-skin-deep-sea .deep-sea-porthole::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(0deg, transparent 49.4%, rgba(125, 211, 252, 0.14) 49.4% 50.6%, transparent 50.6%),
+    linear-gradient(90deg, transparent 49.4%, rgba(125, 211, 252, 0.14) 49.4% 50.6%, transparent 50.6%);
+}
+
+// --- 标题栏深度计（仿云海仙门 chat-header::after 文字装饰） ---
+.chat-skin-deep-sea .chat-header::after {
+  content: 'DEPTH −182m';
+  position: absolute;
+  right: 50%;
+  bottom: 2px;
+  transform: translateX(50%);
+  color: rgba(216, 241, 255, 0.5);
+  font: 10px/1 'Cascadia Code', Consolas, monospace;
+  letter-spacing: 2px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+// --- 发送按钮：生物荧光微光 ---
+.chat-skin-deep-sea .send-button:hover:not(:disabled) {
+  box-shadow: 0 0 14px rgba(45, 212, 191, 0.45), 0 3px 12px rgba(14, 116, 144, 0.4);
+}
+
+// --- 头像：声呐环 ---
+.chat-skin-deep-sea .message-avatar > .avatar-container {
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.12);
+}
+
+// --- 弹层覆写（teleport 到 body，靠 data-chat-skin 继承配色） ---
+body[data-chat-skin='deep-sea'] .n-popover.chat-workspace-popover {
+  --n-color: #14314a;
+  --n-text-color: #d9ecf7;
+  --n-border-color: #2a5a76;
+  --chat-panel: #14314a;
+  --chat-panel-hover: #1b405d;
+  --chat-surface: #173655;
+  --chat-text: #d9ecf7;
+  --chat-text-muted: #8fb3c7;
+  background: #14314a;
+  color: #d9ecf7;
+  border: 1px solid #2a5a76;
+  box-shadow: 0 12px 30px rgba(5, 20, 32, 0.5);
+}
+body[data-chat-skin='deep-sea'] .chat-workspace-popover-content {
+  background: #14314a !important;
+  color: #d9ecf7 !important;
+  border: 1px solid #2a5a76 !important;
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.06), 0 12px 30px rgba(5, 20, 32, 0.5) !important;
+}
+
+@keyframes deep-sea-bubble-rise {
+  0% { transform: translate3d(0, 0, 0) scale(0.7); opacity: 0; }
+  8% { opacity: 0.8; }
+  92% { opacity: 0.6; }
+  100% { transform: translate3d(14px, -104vh, 0) scale(1.05); opacity: 0; }
+}
+@keyframes deep-sea-ray-sway-a {
+  from { transform: rotate(11deg); }
+  to { transform: rotate(17deg); }
+}
+@keyframes deep-sea-ray-sway-b {
+  from { transform: rotate(6deg); }
+  to { transform: rotate(12deg); }
+}
+
+@media (max-width: 768px) {
+  // 移动端精简：隐藏光束与舷窗，气泡减半
+  .chat-skin-deep-sea .deep-sea-ray,
+  .chat-skin-deep-sea .deep-sea-porthole { display: none; }
+  .chat-skin-deep-sea .deep-sea-bubbles i:nth-child(n + 7) { display: none; }
+  .chat-skin-deep-sea .chat-header::after { opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-skin-deep-sea .deep-sea-ray,
+  .chat-skin-deep-sea .deep-sea-bubbles i,
+  .chat-skin-deep-sea * { animation: none !important; transition-duration: 0s !important; }
+}

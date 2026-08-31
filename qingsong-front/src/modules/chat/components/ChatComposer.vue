@@ -17,7 +17,7 @@
       <QuickPhrasePanel :visible="isPhrasePanelOpen" :role-id="selectedRole?.id"
         @close="emit('toggle-phrase-panel', false)" @select-phrase="handleSelectPhrase" />
 
-      <textarea :ref="inputRef" :value="draftMessage" class="message-input scrollbar-md" :placeholder="placeholder" rows="1"
+      <textarea :ref="inputRef" :value="draftMessage" class="message-input" :placeholder="placeholder" rows="1"
         autocomplete="off" spellcheck="false" @input="handleInput" @keydown.enter="handleKeyDown"
         @paste="handlePaste"></textarea>
 
@@ -358,6 +358,20 @@ const triggerLocalFileInput = () => {
 
   &:focus {
     outline: none;
+  }
+
+  &::-webkit-scrollbar {
+    width: var(--scrollbar-size-sm);
+    height: var(--scrollbar-size-sm);
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 2px;
   }
 }
 

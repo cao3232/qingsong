@@ -1,0 +1,145 @@
+// 像素皮肤：「8-bit 游戏机」场景层与签名细节。
+// 配色由 theme.js skinPresets['pixel'] 的 --chat-* 变量驱动（0 圆角/硬阴影/等宽字体），
+// 本文件只负责结构性装饰：CRT 扫描线、像素星星、卡带边框、标题栏闪烁光标、头像像素化。
+
+.ai-chat-view.chat-skin-pixel {
+  position: relative;
+  isolation: isolate;
+  // 奶油底 + 8px 棋盘格（像素画透明底的经典纹样）
+  background: #f0e0bd !important;
+  background-image: repeating-conic-gradient(rgba(120, 72, 24, 0.045) 0% 25%, transparent 0% 50%) !important;
+  background-size: 8px 8px !important;
+  color: var(--chat-text, #3d2b1f);
+  font-family: var(--chat-font-family);
+  // 卡带外壳边框（双侧内描边，不影响布局）
+  box-shadow: inset 0 0 0 3px #c4ad7d, inset 0 0 0 6px #fdf6e3;
+}
+
+// 场景层在内容之上：扫描线要覆盖整个画面才有 CRT 感；alpha 仅 4.5%，
+// 文字与底色同比变暗，对比度比例基本不变（像素皮肤最低审计值 ≥4.8）。
+.chat-skin-pixel .pixel-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+// --- CRT 扫描线 ---
+.chat-skin-pixel .pixel-scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, rgba(60, 32, 8, 0.045) 0 2px, transparent 2px 4px);
+}
+
+// --- 像素星星：box-shadow 像素画（4px 基元的 5×5 星形） ---
+.chat-skin-pixel .pixel-star {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  pointer-events: none;
+  box-shadow:
+    8px 0 0 0 currentColor,
+    4px 4px 0 0 currentColor, 8px 4px 0 0 currentColor, 12px 4px 0 0 currentColor,
+    0 8px 0 0 currentColor, 4px 8px 0 0 currentColor, 8px 8px 0 0 currentColor, 12px 8px 0 0 currentColor, 16px 8px 0 0 currentColor,
+    4px 12px 0 0 currentColor, 8px 12px 0 0 currentColor, 12px 12px 0 0 currentColor,
+    4px 16px 0 0 currentColor, 12px 16px 0 0 currentColor;
+}
+.chat-skin-pixel .pixel-star-a {
+  top: 64px;
+  right: 8%;
+  color: rgba(214, 40, 40, 0.35);
+  animation: pixel-star-twinkle 1.2s steps(2) infinite;
+}
+.chat-skin-pixel .pixel-star-b {
+  bottom: 72px;
+  left: 6%;
+  color: rgba(180, 83, 9, 0.3);
+  animation: pixel-star-twinkle 1.7s steps(2) infinite 0.6s;
+}
+
+// --- 标题栏闪烁光标（steps(1) 硬闪烁，8-bit 待机画面感） ---
+.chat-skin-pixel .chat-header::after {
+  content: '▮ READY';
+  position: absolute;
+  right: 50%;
+  bottom: 2px;
+  transform: translateX(50%);
+  color: rgba(253, 246, 227, 0.65);
+  font: 10px/1 'Courier New', Consolas, monospace;
+  letter-spacing: 2px;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: pixel-blink 1.06s steps(1) infinite;
+}
+
+// --- 头像像素化 ---
+.chat-skin-pixel .message-avatar > .avatar-container {
+  border: 2px solid var(--chat-bevel-shadow);
+  border-radius: 0;
+  box-shadow: 2px 2px 0 rgba(60, 32, 8, 0.25);
+}
+.chat-skin-pixel .avatar-container > .avatar-image {
+  image-rendering: pixelated;
+}
+
+// --- 发送按钮：机械按键手感（悬停弹起、按下塌落） ---
+.chat-skin-pixel .send-button {
+  border: 2px solid #173f8c;
+  box-shadow: 3px 3px 0 rgba(60, 32, 8, 0.3);
+}
+.chat-skin-pixel .send-button:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 rgba(60, 32, 8, 0.3);
+}
+.chat-skin-pixel .send-button:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 rgba(60, 32, 8, 0.3);
+}
+
+// --- 弹层覆写（teleport 到 body，靠 data-chat-skin 继承配色） ---
+body[data-chat-skin='pixel'] .n-popover.chat-workspace-popover {
+  --n-color: #fdf6e3;
+  --n-text-color: #3d2b1f;
+  --n-border-color: #c4ad7d;
+  --n-border-radius: 0;
+  --chat-panel: #fdf6e3;
+  --chat-panel-hover: #f5ead0;
+  --chat-surface: #fffaf0;
+  --chat-text: #3d2b1f;
+  --chat-text-muted: #77624a;
+  background: #fdf6e3;
+  color: #3d2b1f;
+  border: 2px solid #c4ad7d;
+  border-radius: 0;
+  box-shadow: 4px 4px 0 rgba(60, 32, 8, 0.25);
+  font-family: 'Courier New', Consolas, 'Lucida Console', monospace;
+}
+body[data-chat-skin='pixel'] .chat-workspace-popover-content {
+  background: #fdf6e3 !important;
+  color: #3d2b1f !important;
+  border: 2px solid #c4ad7d !important;
+  border-radius: 0 !important;
+  box-shadow: 4px 4px 0 rgba(60, 32, 8, 0.25) !important;
+}
+
+@keyframes pixel-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+@keyframes pixel-star-twinkle {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.25; }
+}
+
+@media (max-width: 768px) {
+  // 移动端精简：隐藏像素星星，扫描线保留（极低开销）
+  .chat-skin-pixel .pixel-star { display: none; }
+  .chat-skin-pixel .chat-header::after { opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-skin-pixel .pixel-star,
+  .chat-skin-pixel .chat-header::after,
+  .chat-skin-pixel * { animation: none !important; transition-duration: 0s !important; }
+}

@@ -15,6 +15,7 @@ export {
   clearRecentPdfs
 } from './pdfRecentService.js'
 export { rolePhrasesAPI } from './rolePhrasesService.js'
+export { favoriteAPI } from './favoriteService.js'
 export {
   ttsAPI,
   hasTtsApiKey,

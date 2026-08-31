@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
+import { applyCodeTheme } from '../services/codeTheme.js'
+import { isDarkColor } from '../shared/utils/colorUtils.js'
 
 // 简单的防抖函数，避免过于频繁地写入 localStorage
 function debounce(fn, delay) {
@@ -97,7 +99,9 @@ export const useThemeStore = defineStore('theme', () => {
     { name: '夏日橙', value: 'linear-gradient(135deg, #ffb089 0%, #ff8386 100%)', isDark: false, category: 'colorful' },
     
     // 游戏主题 (10个)
-    { name: '王者荣耀', value: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #f1c40f 100%)', isDark: true, category: 'game' },
+    // 王者荣耀原为 #1e3c72→#2a5298→#f1c40f（金色 stop 拉高均亮，子标签交互态白字跌破 4.5），
+    // 保留深蓝+金色相整体压暗（contrast-audit 子标签普通/悬停/激活硬门禁）
+    { name: '王者荣耀', value: 'linear-gradient(135deg, #16294e 0%, #1d3a6b 50%, #c9a227 100%)', isDark: true, category: 'game' },
     { name: '穿越火线', value: 'linear-gradient(135deg, #2c3e50 0%, #c0392b 100%)', isDark: true, category: 'game' },
     { name: '星露谷', value: 'linear-gradient(135deg, #78e08f 0%, #38ada9 100%)', isDark: false, category: 'game' },
     { name: '原神', value: 'linear-gradient(135deg, #dceefb 0%, #a2d2ff 100%)', isDark: false, category: 'game' },
@@ -121,7 +125,9 @@ export const useThemeStore = defineStore('theme', () => {
     { name: '荷塘月色', value: 'linear-gradient(to top, #0089ad 0%, #003fa1 100%)', isDark: true, category: 'chinese' },
     
     // 其他风格 (10个)
-    { name: '深海蓝', value: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', isDark: true, category: 'other' },
+    // 深海蓝原为 #667eea→#764ba2（亮度 0.16 贴深色档上限），子标签底色再叠白/主色后白字跌破 4.5，
+    // 保留蓝紫色相整体压暗（contrast-audit 子标签激活/普通项硬门禁）
+    { name: '深海蓝', value: 'linear-gradient(135deg, #4f5cc0 0%, #5a3486 100%)', isDark: true, category: 'other' },
     { name: '宁静蓝', value: 'linear-gradient(to right, #a4b3fd, #fd9cb0)', isDark: false, category: 'other' },
     { name: '清新绿', value: 'linear-gradient(to right, #43e97b, #38f9d7)', isDark: false, category: 'other' },
     { name: '活力橙', value: 'linear-gradient(to right, #fa643b, #fade56)', isDark: false, category: 'other' },
@@ -219,7 +225,7 @@ export const useThemeStore = defineStore('theme', () => {
         '--chat-scrollbar-track': 'repeating-conic-gradient(#c0c0c0 0% 25%, #ffffff 0% 50%) 50% / 2px 2px',
         '--chat-scrollbar-thumb': '#c0c0c0',
         '--chat-scrollbar-border': '#808080',
-        '--chat-scrollbar-size': '17px',
+        '--chat-scrollbar-size': '8px',
         '--chat-radius': '0px',
         '--chat-font-family': "'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif",
         '--chat-shadow': 'none',
@@ -939,6 +945,268 @@ export const useThemeStore = defineStore('theme', () => {
         '--chat-send-bg': 'linear-gradient(145deg, #4b9a8e, #23635f)',
         '--chat-send-bg-hover': 'linear-gradient(145deg, #61aca0, #2f7d78)'
       }
+    },
+    {
+      // 天空：正午蓝天 + 白云，配「晴空流云」场景层（流云/太阳光晕），
+      // 场景与弹层覆写在 modules/chat/themes/sky.scss。
+      // 与云海仙门（青绿雾气仙山）区分：天空是明亮的正午蓝天。
+      name: 'sky',
+      label: '天空',
+      isDark: false,
+      pageBackground: '#cfe9f7',
+      vars: {
+        '--chat-wallpaper': '#bfe3f7',
+        '--chat-wallpaper-grid': 'transparent',
+        '--chat-backdrop': 'rgba(12, 74, 110, 0.35)',
+        '--chat-panel': '#ffffff',
+        '--chat-panel-hover': '#f0f7fd',
+        '--chat-sunken': '#eaf5fc',
+        '--chat-bevel-light': '#d6ebf8',
+        '--chat-bevel-shadow': '#b8d9ee',
+        '--chat-bevel-frame-light': 'transparent',
+        '--chat-bevel-frame-dark': 'transparent',
+        '--chat-inset-shadow': 'rgba(3, 105, 161, 0.08)',
+        '--chat-inset-light': 'transparent',
+        '--chat-titlebar-start': '#0369a1',
+        '--chat-titlebar-end': '#075985',
+        '--chat-accent': '#0369a1',
+        '--chat-accent-hover': '#0284c7',
+        '--chat-text': '#1e3a52',
+        '--chat-text-muted': '#527088',
+        '--chat-text-on-accent': '#ffffff',
+        '--chat-active-title': '#ffffff',
+        '--chat-active-muted': 'rgba(255, 255, 255, 0.85)',
+        '--chat-titlebar-text': '#ffffff',
+        '--chat-titlebar-separator': 'rgba(255, 255, 255, 0.28)',
+        '--chat-titlebar-hairline': 'rgba(12, 74, 110, 0.3)',
+        '--chat-titlebar-text-shadow': 'none',
+        '--chat-titlebar-text-muted': 'rgba(255, 255, 255, 0.78)',
+        '--chat-danger': '#dc2626',
+        '--chat-danger-text': '#b91c1c',
+        '--chat-danger-tint': '#fee2e2',
+        '--chat-success': '#059669',
+        '--chat-success-tint': '#d1fae5',
+        '--chat-favorite': '#d97706',
+        '--chat-favorite-on': '#f59e0b',
+        '--chat-favorite-tint': '#fef3c7',
+        '--chat-rag': '#7c3aed',
+        '--chat-tooltip': '#ffffff',
+        '--chat-scrollbar-track': '#e3f1fa',
+        '--chat-scrollbar-thumb': '#a8cfe8',
+        '--chat-scrollbar-border': '#d6ebf8',
+        '--chat-scrollbar-size': '8px',
+        '--chat-radius': '16px',
+        '--chat-font-family': "system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Roboto, sans-serif",
+        '--chat-shadow': '0 4px 14px rgba(3, 105, 161, 0.12)',
+        '--chat-shadow-color': '#0c4a6e',
+        '--chat-popover-shadow': '0 12px 32px rgba(3, 105, 161, 0.18)',
+        '--chat-input-bg': '#ffffff',
+        '--chat-surface': '#ffffff',
+        '--chat-surface-text': '#1e3a52',
+        '--chat-user-bubble-bg': 'linear-gradient(135deg, #0284c7, #0369a1)',
+        '--chat-user-bubble-bg-hover': 'linear-gradient(135deg, #0b96db, #0477b5)',
+        '--chat-user-bubble-text': '#ffffff',
+        '--chat-user-bubble-border': 'transparent',
+        '--chat-user-bubble-border-hover': 'transparent',
+        '--chat-user-bubble-shadow': '0 4px 12px rgba(3, 105, 161, 0.25)',
+        '--chat-ai-bubble-bg': '#ffffff',
+        '--chat-ai-bubble-text': '#1e3a52',
+        '--chat-ai-bubble-shadow': '0 2px 8px rgba(3, 105, 161, 0.1)',
+        '--chat-ai-bubble-border': '#d6ebf8',
+        '--chat-markdown-text': '#2c4a66',
+        '--chat-markdown-heading': '#12314a',
+        '--chat-markdown-marker': '#0284c7',
+        '--chat-inline-code-bg': '#eef7fd',
+        '--chat-inline-code-border': '#c8e2f2',
+        '--chat-blockquote-bg': 'linear-gradient(to right, rgba(224, 242, 254, 0.9), rgba(255, 255, 255, 0.7))',
+        '--chat-blockquote-text': '#4a6a84',
+        '--chat-table-bg': '#ffffff',
+        '--chat-table-border': '#d6ebf8',
+        '--chat-table-head-text': '#12314a',
+        '--chat-link': '#0369a1',
+        '--chat-blockquote-border': '#38bdf8',
+        '--chat-code-text': '#e2e8f0',
+        '--chat-inline-code-text': '#0c4a6e',
+        '--chat-table-head': '#eef7fd',
+        '--chat-table-stripe': '#f7fbfe',
+        '--chat-image-bg': '#eef7fd',
+        '--chat-send-bg': 'linear-gradient(135deg, #0284c7, #0369a1)',
+        '--chat-send-bg-hover': 'linear-gradient(135deg, #0b96db, #0477b5)'
+      }
+    },
+    {
+      // 深海：深渊蓝底 + 生物荧光青点缀，配「潜水舱」场景层（上浮气泡/海面光束/舷窗水印），
+      // 场景与弹层覆写在 modules/chat/themes/deepSea.scss。与极光（紫调夜空）、终端（绿调）区分。
+      name: 'deep-sea',
+      label: '深海',
+      isDark: true,
+      pageBackground: '#0d2436',
+      vars: {
+        '--chat-wallpaper': '#0e2a3d',
+        '--chat-wallpaper-grid': 'rgba(56, 189, 248, 0.03)',
+        '--chat-backdrop': 'rgba(5, 20, 32, 0.55)',
+        '--chat-panel': '#14314a',
+        '--chat-panel-hover': '#1b405d',
+        '--chat-sunken': '#0a1d2c',
+        '--chat-bevel-light': '#2a5a76',
+        '--chat-bevel-shadow': '#0a1a26',
+        '--chat-bevel-frame-light': 'transparent',
+        '--chat-bevel-frame-dark': 'transparent',
+        '--chat-inset-shadow': 'rgba(0, 0, 0, 0.4)',
+        '--chat-inset-light': 'transparent',
+        '--chat-titlebar-start': '#123452',
+        '--chat-titlebar-end': '#1a4a70',
+        '--chat-accent': '#0e7490',
+        '--chat-accent-hover': '#0891b2',
+        '--chat-text': '#d9ecf7',
+        '--chat-text-muted': '#8fb3c7',
+        '--chat-text-on-accent': '#ffffff',
+        '--chat-active-title': '#ffffff',
+        '--chat-active-muted': 'rgba(255, 255, 255, 0.82)',
+        '--chat-titlebar-text': '#d8f1ff',
+        '--chat-titlebar-separator': 'rgba(125, 211, 252, 0.22)',
+        '--chat-titlebar-hairline': '#1d4258',
+        '--chat-titlebar-text-shadow': 'none',
+        '--chat-titlebar-text-muted': 'rgba(168, 216, 240, 0.75)',
+        '--chat-danger': '#f87171',
+        '--chat-danger-text': '#fca5a5',
+        '--chat-danger-tint': '#3d1f24',
+        '--chat-success': '#34d399',
+        '--chat-success-tint': '#0a2b24',
+        '--chat-favorite': '#fbbf24',
+        '--chat-favorite-on': '#fcd34d',
+        '--chat-favorite-tint': '#33300f',
+        '--chat-rag': '#7dd3fc',
+        '--chat-tooltip': '#1b405d',
+        '--chat-scrollbar-track': '#0d2436',
+        '--chat-scrollbar-thumb': '#26608a',
+        '--chat-scrollbar-border': '#1b405d',
+        '--chat-scrollbar-size': '8px',
+        '--chat-radius': '10px',
+        '--chat-font-family': "system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Roboto, sans-serif",
+        '--chat-shadow': '0 2px 10px rgba(5, 20, 32, 0.4)',
+        '--chat-shadow-color': '#02090f',
+        '--chat-popover-shadow': '0 10px 28px rgba(5, 20, 32, 0.5)',
+        '--chat-input-bg': '#0d2436',
+        '--chat-surface': '#173655',
+        '--chat-surface-text': '#d9ecf7',
+        '--chat-user-bubble-bg': 'linear-gradient(135deg, #0e7490, #155e75)',
+        '--chat-user-bubble-bg-hover': 'linear-gradient(135deg, #0891b2, #186a84)',
+        '--chat-user-bubble-text': '#ffffff',
+        '--chat-user-bubble-border': 'transparent',
+        '--chat-user-bubble-border-hover': 'transparent',
+        '--chat-user-bubble-shadow': '0 3px 12px rgba(14, 116, 144, 0.32)',
+        '--chat-ai-bubble-bg': '#173655',
+        '--chat-ai-bubble-text': '#d9ecf5',
+        '--chat-ai-bubble-shadow': '0 1px 3px rgba(1, 8, 15, 0.35)',
+        '--chat-ai-bubble-border': '#1d4258',
+        '--chat-markdown-text': '#c3dcec',
+        '--chat-markdown-heading': '#eaf6ff',
+        '--chat-markdown-marker': '#2dd4bf',
+        '--chat-inline-code-bg': '#0d2436',
+        '--chat-inline-code-border': '#2a5a76',
+        '--chat-blockquote-bg': 'linear-gradient(to right, rgba(14, 116, 144, 0.28), rgba(20, 49, 74, 0.5))',
+        '--chat-blockquote-text': '#b8dcec',
+        '--chat-table-bg': '#14314a',
+        '--chat-table-border': '#2a5a76',
+        '--chat-table-head-text': '#d9ecf7',
+        '--chat-link': '#38bdf8',
+        '--chat-blockquote-border': '#2dd4bf',
+        '--chat-code-text': '#e2e8f0',
+        '--chat-inline-code-text': '#7dd3fc',
+        '--chat-table-head': '#1b405d',
+        '--chat-table-stripe': '#103050',
+        '--chat-image-bg': '#14314a',
+        '--chat-send-bg': 'linear-gradient(135deg, #0e7490, #155e75)',
+        '--chat-send-bg-hover': 'linear-gradient(135deg, #0891b2, #186a84)'
+      }
+    },
+    {
+      // 像素：8-bit 游戏机——Famicom 奶油壳 + 红白机红 + 主机蓝，
+      // 0 圆角/硬偏移阴影/等宽字体，配 CRT 扫描线与像素星星场景层（themes/pixel.scss）。
+      name: 'pixel',
+      label: '像素',
+      isDark: false,
+      pageBackground: '#f5e6c8',
+      vars: {
+        '--chat-wallpaper': '#f0e0bd',
+        '--chat-wallpaper-grid': 'transparent',
+        '--chat-backdrop': 'rgba(60, 32, 8, 0.4)',
+        '--chat-panel': '#fdf6e3',
+        '--chat-panel-hover': '#f5ead0',
+        '--chat-sunken': '#efe2c2',
+        '--chat-bevel-light': '#d9c69a',
+        '--chat-bevel-shadow': '#c4ad7d',
+        '--chat-bevel-frame-light': 'transparent',
+        '--chat-bevel-frame-dark': 'transparent',
+        '--chat-inset-shadow': 'rgba(120, 72, 24, 0.1)',
+        '--chat-inset-light': 'transparent',
+        '--chat-titlebar-start': '#d62828',
+        '--chat-titlebar-end': '#9b1c1c',
+        '--chat-accent': '#d62828',
+        '--chat-accent-hover': '#b32020',
+        '--chat-text': '#3d2b1f',
+        '--chat-text-muted': '#77624a',
+        '--chat-text-on-accent': '#ffffff',
+        '--chat-active-title': '#ffffff',
+        '--chat-active-muted': 'rgba(255, 255, 255, 0.85)',
+        '--chat-titlebar-text': '#fdf6e3',
+        '--chat-titlebar-separator': 'rgba(253, 246, 227, 0.3)',
+        '--chat-titlebar-hairline': 'rgba(60, 32, 8, 0.15)',
+        '--chat-titlebar-text-shadow': '2px 2px 0 rgba(60, 32, 8, 0.35)',
+        '--chat-titlebar-text-muted': 'rgba(253, 246, 227, 0.8)',
+        '--chat-danger': '#dc2626',
+        '--chat-danger-text': '#991b1b',
+        '--chat-danger-tint': '#fbe0d0',
+        '--chat-success': '#15803d',
+        '--chat-success-tint': '#d8ecc8',
+        '--chat-favorite': '#b45309',
+        '--chat-favorite-on': '#d97706',
+        '--chat-favorite-tint': '#f8ecc8',
+        '--chat-rag': '#7c3aed',
+        '--chat-tooltip': '#fdf6e3',
+        '--chat-scrollbar-track': '#efe2c2',
+        '--chat-scrollbar-thumb': '#c4ad7d',
+        '--chat-scrollbar-border': '#d9c69a',
+        '--chat-scrollbar-size': '10px',
+        '--chat-radius': '0px',
+        '--chat-font-family': "'Courier New', Consolas, 'Lucida Console', monospace",
+        '--chat-shadow': '3px 3px 0 rgba(60, 32, 8, 0.22)',
+        '--chat-shadow-color': 'rgba(60, 32, 8, 0.35)',
+        '--chat-popover-shadow': '5px 5px 0 rgba(60, 32, 8, 0.2)',
+        '--chat-input-bg': '#fdf6e3',
+        '--chat-surface': '#fffaf0',
+        '--chat-surface-text': '#3d2b1f',
+        '--chat-user-bubble-bg': 'linear-gradient(180deg, #2f6fdd, #1d4fae)',
+        '--chat-user-bubble-bg-hover': 'linear-gradient(180deg, #3d7deb, #235cbc)',
+        '--chat-user-bubble-text': '#ffffff',
+        '--chat-user-bubble-border': '#1d4fae',
+        '--chat-user-bubble-border-hover': '#173f8c',
+        '--chat-user-bubble-shadow': '3px 3px 0 rgba(60, 32, 8, 0.25)',
+        '--chat-ai-bubble-bg': '#fffaf0',
+        '--chat-ai-bubble-text': '#3d2b1f',
+        '--chat-ai-bubble-shadow': '2px 2px 0 rgba(60, 32, 8, 0.12)',
+        '--chat-ai-bubble-border': '#c4ad7d',
+        '--chat-markdown-text': '#4a3728',
+        '--chat-markdown-heading': '#2c1e12',
+        '--chat-markdown-marker': '#d62828',
+        '--chat-inline-code-bg': '#f5ead0',
+        '--chat-inline-code-border': '#c4ad7d',
+        '--chat-blockquote-bg': 'linear-gradient(to right, rgba(214, 40, 40, 0.08), rgba(253, 246, 227, 0.6))',
+        '--chat-blockquote-text': '#6b5138',
+        '--chat-table-bg': '#fffaf0',
+        '--chat-table-border': '#d9c69a',
+        '--chat-table-head-text': '#2c1e12',
+        '--chat-link': '#1d4ed8',
+        '--chat-blockquote-border': '#d62828',
+        '--chat-code-text': '#e2e8f0',
+        '--chat-inline-code-text': '#9b1c1c',
+        '--chat-table-head': '#f5ead0',
+        '--chat-table-stripe': '#fdf6e3',
+        '--chat-image-bg': '#f5ead0',
+        '--chat-send-bg': 'linear-gradient(180deg, #2f6fdd, #1d4fae)',
+        '--chat-send-bg-hover': 'linear-gradient(180deg, #3d7deb, #235cbc)'
+      }
     }
   ])
 
@@ -959,7 +1227,7 @@ export const useThemeStore = defineStore('theme', () => {
     isThemeDark: false,
 
     // 聊天皮肤（/chat 换肤）
-    chatSkin: 'retro', // 'retro' | 'modern-light' | 'modern-dark' | 'paper' | 'emerald' | 'terminal' | 'coral' | 'ink' | 'cloud-immortal'
+    chatSkin: 'retro', // 'retro' | 'modern-light' | 'modern-dark' | 'paper' | 'emerald' | 'terminal' | 'coral' | 'ink' | 'cloud-immortal' | 'sky' | 'deep-sea' | 'pixel'
     
     // 聊天样式
     chatBackgroundType: 'theme', // 'theme' 跟随主题, 'color' 纯色, 'image' 图片
@@ -980,6 +1248,9 @@ export const useThemeStore = defineStore('theme', () => {
     codeBlockBackground: '#1e293b',
     codeFontSize: 14,
     codeFont: 'system',
+    // 代码高亮主题：默认深色，保持历史「代码块恒为深色」的外观；
+    // 'dark' 深色 | 'light' 浅色 | 'auto' 跟随皮肤/页面明暗
+    codeTheme: 'dark',
     
     // 聊天行为
     autoScroll: true,
@@ -989,6 +1260,10 @@ export const useThemeStore = defineStore('theme', () => {
     autoCopyUserMessage: false,
     enableHoverEffects: false, // 关闭悬停效果，提高性能
     parseMdAfterStream: false, // 流式结束后再解析 Markdown：流式期间仅显示纯文本，减少长消息解析卡顿
+
+    // mermaid 图表样式（聊天 Markdown 中的流程图等）
+    mermaidTheme: 'auto',    // 'auto' 跟随皮肤明暗 | 'neutral' | 'default' | 'dark' | 'forest' | 'base'
+    mermaidLook: 'classic',  // 'classic' 经典 | 'handDrawn' 手绘
     
     // 滚动条样式
     scrollbarThumbColor: '#cbd5e1', // 默认滚动条滑块颜色
@@ -1019,12 +1294,44 @@ export const useThemeStore = defineStore('theme', () => {
   // --- 响应式状态 ---
   const config = ref(JSON.parse(JSON.stringify(defaultConfig)))
 
+  // 生效的页面背景：皮肤固定背景（pageBackground 且非 followPageBackground）时用皮肤的，
+  // 否则用用户在「页面外观」自选的 config.pageBackground。
+  // 皮肤切换只影响生效值，不改写用户选择，切回跟随型皮肤时用户背景自然还原。
+  const effectivePageBackground = computed(() => {
+    const skin = skinPresets.value.find(s => s.name === config.value.chatSkin) || skinPresets.value[0]
+    return (skin?.pageBackground && !skin.followPageBackground)
+      ? skin.pageBackground
+      : config.value.pageBackground
+  })
+
+  // 生效的明暗标志：皮肤固定背景时用皮肤的 isDark；否则按用户背景推导
+  // （命中背景预设用预设的 isDark 标志；自定义颜色按代表色亮度 < 0.25 推导，见 colorUtils）。
+  // 文字/边框/悬停/代码主题等所有随明暗变化的配色一律以此为准，不再直接读 config.isThemeDark——
+  // 后者是独立存储字段，会被自定义取色器等入口绕过同步，造成「白字白底」类失配。
+  const effectiveIsDark = computed(() => {
+    const skin = skinPresets.value.find(s => s.name === config.value.chatSkin) || skinPresets.value[0]
+    if (skin?.pageBackground && !skin.followPageBackground) return !!skin.isDark
+    const preset = backgroundPresets.value.find(p => p.value === config.value.pageBackground)
+    if (preset) return !!preset.isDark
+    return isDarkColor(config.value.pageBackground)
+  })
+
+  // 面板背景智能匹配：深色主题用深色玻璃、浅色主题用浅色玻璃。
+  // 一律按「生效明暗」（effectiveIsDark）匹配，而不是按某个入口的局部参数——
+  // 例如固定背景皮肤激活时再点浅色背景预设，生效明暗仍是皮肤的深色，
+  // 若按预设标志匹配就会把面板切成白玻璃，造成「白字白底」冲突。
+  const matchPanelToTheme = () => {
+    config.value.panelBackground = effectiveIsDark.value ? 'rgba(0, 0, 0, 0.3)' : 'rgba(255, 255, 255, 0.5)'
+  }
+
   // --- 方法 ---
 
   // 应用样式到页面
   const applyStyles = () => {
     const root = document.documentElement
     const conf = config.value
+    // 统一用推导出的生效明暗（见 effectiveIsDark 注释），不直接读 conf.isThemeDark
+    const isDark = effectiveIsDark.value
 
     const fontFamily = conf.fontFamily === 'system' 
       ? 'system-ui, -apple-system, sans-serif' 
@@ -1036,20 +1343,20 @@ export const useThemeStore = defineStore('theme', () => {
 
     // 根据对比度设置调整颜色 - 使用简洁的灰色主题
     const textPrimary = conf.topicTrackerContrast === 'high'
-      ? (conf.isThemeDark ? '#f8f9fa' : '#374151')
-      : (conf.isThemeDark ? '#f8f9fa' : '#4b5563');
+      ? (isDark ? '#f8f9fa' : '#374151')
+      : (isDark ? '#f8f9fa' : '#4b5563');
       
     const textSecondary = conf.topicTrackerContrast === 'high'
-      ? (conf.isThemeDark ? '#adb5bd' : '#6b7280')
-      : (conf.isThemeDark ? '#adb5bd' : '#9ca3af');
+      ? (isDark ? '#adb5bd' : '#6b7280')
+      : (isDark ? '#adb5bd' : '#9ca3af');
       
     const borderColor = conf.topicTrackerContrast === 'high'
-      ? (conf.isThemeDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.1)')
-      : (conf.isThemeDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.06)');
+      ? (isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.1)')
+      : (isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.06)');
 
     const cssVars = {
-      // 基础变量
-      '--app-background': conf.pageBackground,
+      // 基础变量（页面背景用生效值：皮肤固定背景优先，否则用户自选）
+      '--app-background': effectivePageBackground.value,
       '--app-font-family': fontFamily,
       '--app-font-size': conf.fontSize + 'px',
       '--app-panel-background': conf.panelBackground,
@@ -1059,15 +1366,28 @@ export const useThemeStore = defineStore('theme', () => {
       '--app-text-primary': textPrimary,
       '--app-text-secondary': textSecondary,
       '--app-border-color': borderColor,
-      '--app-component-bg': conf.isThemeDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(248, 250, 252, 0.5)',
-      '--app-hover-bg': conf.isThemeDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(59, 130, 246, 0.1)',
-      '--app-active-bg': conf.isThemeDark ? 'rgba(59, 130, 246, 0.2)' : '#3b82f6',
-      '--app-active-text': conf.isThemeDark ? '#ffffff' : '#ffffff',
-      '--app-active-text-hover': conf.isThemeDark ? '#3b82f6' : '#3b82f6',
+      '--app-component-bg': isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(248, 250, 252, 0.5)',
+      // 输入框底色：需要比 component-bg 更实的「面」——浅色用纯白、深色用微亮叠层，
+      // 保证输入框在玻璃面板/二级底色上有清晰边界
+      '--app-input-bg': isDark ? 'rgba(255, 255, 255, 0.06)' : '#ffffff',
+      // 二级背景（tab 栏轨道、卡片嵌套区、头像画廊等 34 处使用）：
+      // 此前从未定义，深色主题下全部落到浅色兜底值导致「浅底+浅字」；浅色档取最常用的兜底 #f3f4f6。
+      // 深色档用「比页面更深」而非更亮：中亮度深色背景上叠亮层会稀释白字对比度（contrast-audit 子标签项硬门禁）
+      '--app-bg-secondary': isDark ? 'rgba(0, 0, 0, 0.18)' : '#f3f4f6',
+      '--app-hover-bg': isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+      // 首页菜单卡片 :hover 叠层：统一为「提亮」语义的白色叠层（仅透明度分档）。
+      // 不能用深色/彩色叠层——浅色主题下面板已近白，任何压暗都会让次级文字跌破 WCAG 4.5:1
+      // （该口径由 scripts/contrast-audit.mjs 悬停态检查硬门禁保证）。
+      '--app-card-hover-tint': isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.45)',
+      // 激活态主色：浅色档用 #2563eb（白字 5.17:1 过 WCAG AA；原 #3b82f6 仅 3.68 不达标）；
+      // 深色档保持半透明蓝（叠深底后白字 ≥12:1）
+      '--app-active-bg': isDark ? 'rgba(59, 130, 246, 0.2)' : '#2563eb',
+      '--app-active-text': isDark ? '#ffffff' : '#ffffff',
+      '--app-active-text-hover': isDark ? '#3b82f6' : '#3b82f6',
 
       // 聊天界面变量
       '--app-chat-background-type': conf.chatBackgroundType,
-      '--app-chat-background': conf.chatBackgroundType === 'theme' ? conf.pageBackground : (conf.chatBackgroundType === 'image' ? 'transparent' : conf.chatBackground),
+      '--app-chat-background': conf.chatBackgroundType === 'theme' ? effectivePageBackground.value : (conf.chatBackgroundType === 'image' ? 'transparent' : conf.chatBackground),
       '--app-chat-background-image': conf.chatBackgroundType === 'image' && conf.chatBackgroundImage ? conf.chatBackgroundImage : '',
       '--app-chat-background-opacity': conf.chatBackgroundType === 'image' ? String(conf.chatBackgroundImageOpacity ?? 0.5) : '1',
       
@@ -1104,22 +1424,40 @@ export const useThemeStore = defineStore('theme', () => {
     Object.entries(skin.vars).forEach(([property, value]) => {
       root.style.setProperty(property, value)
     })
-    // 支持「跟随页面背景」的皮肤：聊天桌面壁纸使用用户自定义的页面背景，并去掉壁纸网格线
+    // 支持「跟随页面背景」的皮肤：聊天桌面壁纸跟随生效页面背景，并去掉壁纸网格线
     if (skin.followPageBackground) {
-      root.style.setProperty('--chat-wallpaper', conf.pageBackground)
+      root.style.setProperty('--chat-wallpaper', effectivePageBackground.value)
       root.style.setProperty('--chat-wallpaper-grid', 'transparent')
     }
     root.style.setProperty('--chat-inline-code-bg', conf.inlineCodeBackground)
+
+    // 代码高亮主题：跟随生效明暗，或用户强制浅/深。
+    // 浅色主题下代码块背景与代码文字色必须换成浅色可读配色，并注入浅色 token 配色；
+    // 深色主题保持皮肤自带的 --chat-code-text（如终端绿/祖母绿等皮肤特色），不覆盖。
+    const resolvedCodeTheme = conf.codeTheme === 'light' || conf.codeTheme === 'dark'
+      ? conf.codeTheme
+      : (isDark ? 'dark' : 'light')
+    if (resolvedCodeTheme === 'light') {
+      root.style.setProperty('--code-block-background', '#f6f8fa')
+      root.style.setProperty('--chat-code-text', '#24292e')
+    } else {
+      root.style.setProperty('--code-block-background', conf.codeBlockBackground)
+    }
+    applyCodeTheme(resolvedCodeTheme)
   }
 
-  // 切换聊天皮肤：写入配置并立即应用样式
+  // 切换聊天皮肤：写入配置并立即应用样式。
+  // 注意：不再把皮肤的固定背景写进 config.pageBackground——用户自选的背景保留，
+  // 皮肤背景仅通过 effectivePageBackground 生效，切回跟随型皮肤即还原。
   const setChatSkin = (name) => {
     const skin = skinPresets.value.find(s => s.name === name)
     if (!skin) return
     config.value.chatSkin = skin.name
     config.value.isThemeDark = skin.isDark
-    // 跟随页面背景的皮肤（如明亮现代）不覆盖用户自定义的页面背景
-    if (skin.pageBackground && !skin.followPageBackground) config.value.pageBackground = skin.pageBackground
+    // 面板随「生效明暗」匹配（chatSkin 刚写入，effectiveIsDark 已同步重算）：
+    // 固定背景皮肤取皮肤 isDark；跟随型皮肤取用户背景的推导值——
+    // 不能用 skin.isDark，否则跟随型皮肤 + 深色自定义背景会错配成白玻璃面板
+    matchPanelToTheme()
     applyStyles()
   }
 
@@ -1143,6 +1481,15 @@ export const useThemeStore = defineStore('theme', () => {
           delete parsedConfig.enableAnimations
           // 合并保存的配置和默认配置，以防有新增的配置项
           config.value = { ...defaultConfig, ...parsedConfig }
+          // 嵌套对象防御性深合并：旧版本地配置若缺键/为 null，模板直接读
+          // config.userAvatar.enabled 会抛 TypeError 导致整个设置页渲染失败
+          for (const key of ['userAvatar', 'aiAvatar']) {
+            const saved = parsedConfig[key]
+            config.value[key] = {
+              ...defaultConfig[key],
+              ...(saved && typeof saved === 'object' ? saved : {})
+            }
+          }
         } else {
           // If localStorage is corrupted or not an object, reset to default
           config.value = JSON.parse(JSON.stringify(defaultConfig))
@@ -1183,11 +1530,16 @@ export const useThemeStore = defineStore('theme', () => {
     chatBackgroundPresets,
     inlineCodeBackgroundPresets,
     skinPresets,
+
+    // 计算属性
+    effectivePageBackground,
+    effectiveIsDark,
     
     // 方法
     init,
     resetConfig,
     setChatSkin,
+    matchPanelToTheme,
     // 提供一个直接修改config的方法，Vue组件中可以直接使用 v-model="store.config.fontSize"
   }
 })

@@ -58,7 +58,7 @@
         </div>
 
         <div
-          class="role-table-scroll scrollbar-sm"
+          class="role-table-scroll"
           ref="roleListRef"
           @scroll="handleRoleListScroll"
         >
@@ -613,6 +613,22 @@ onMounted(() => {
   background: var(--app-component-bg, rgba(255, 255, 255, 0.8));
 }
 
+.role-table-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.role-table-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+.role-table-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 4px;
+  min-height: 40px;
+}
+.role-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
 /* 列表滚动进度条 */
 .list-progress {
   position: sticky;
@@ -947,42 +963,6 @@ onMounted(() => {
   .role-form-grid {
     grid-template-columns: 1fr;
   }
-}
-
-/* 暗色模式 */
-:global(.dark) .role-table-scroll {
-  background: var(--app-component-bg, rgba(30, 30, 30, 0.8));
-}
-:global(.dark) .role-avatar {
-  background: var(--app-bg-secondary, rgba(30, 30, 30, 0.8));
-}
-:global(.dark) .favor-badge {
-  background: rgba(255, 255, 255, 0.06);
-}
-:global(.dark) .session-badge {
-  background: rgba(251, 146, 60, 0.18);
-}
-:global(.dark) .role-form-label {
-  color: var(--app-text-primary, #e5e7eb);
-}
-:global(.dark) .role-desc {
-  color: var(--app-text-secondary, #9ca3af);
-}
-:global(.dark) .batch-actions-bar {
-  background: linear-gradient(135deg, rgba(255, 184, 108, 0.14), rgba(251, 113, 133, 0.12));
-  border-color: rgba(251, 191, 36, 0.2);
-}
-:global(.dark) .batch-cancel {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
-  color: var(--app-text-secondary, #9ca3af);
-}
-:global(.dark) .batch-cancel:hover {
-  color: var(--app-text-primary, #e5e7eb);
-  background: rgba(255, 255, 255, 0.1);
-}
-:global(.dark) .model-table tbody tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.03);
 }
 
 /* 小屏适配 */

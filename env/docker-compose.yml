@@ -20,6 +20,7 @@ services:
       - ../sql/config-schema.sql:/docker-entrypoint-initdb.d/02-config-schema.sql:ro
       - ../sql/seed-data.sql:/docker-entrypoint-initdb.d/03-seed-data.sql:ro
       - ../sql/sys-dict-schema.sql:/docker-entrypoint-initdb.d/04-sys-dict-schema.sql:ro
+      - ../sql/chat-favorite-schema.sql:/docker-entrypoint-initdb.d/05-chat-favorite-schema.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot123456"]
       interval: 10s

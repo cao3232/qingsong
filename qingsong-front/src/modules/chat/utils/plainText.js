@@ -108,7 +108,10 @@ export const splitTextIntoSegments = (content = '', maxChars = 500) => {
     return []
   }
 
-  const normalized = String(content).replace(/\s+/g, ' ').trim()
+  // 折叠多余空格/制表符为单个空格，但保留换行（段落边界）：
+  // 换行是 TTS 的断句/停顿信号，也用于让超长文本按段落自然分段；
+  // 不能像之前把所有空白统一压成空格那样，把段落糊成一片。
+  const normalized = String(content).replace(/[ \t]{2,}/g, ' ').replace(/\n{2,}/g, '\n').trim()
   if (!normalized) {
     return []
   }

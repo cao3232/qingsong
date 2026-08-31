@@ -46,6 +46,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 
 import java.io.IOException;
@@ -385,8 +386,9 @@ public class ChatController {
     }
 
     @RequestMapping(value = "/rag/chat/{message}")
-    public String ragChat(@PathVariable String message) {
-        return ragChatService.ask(message);
+    public String ragChat(@PathVariable String message,
+                          @RequestParam(required = false) List<String> knowledgeBaseId) {
+        return ragChatService.ask(message, knowledgeBaseId);
     }
 
     @PostMapping(value = "/changeContent")

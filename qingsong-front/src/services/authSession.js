@@ -58,6 +58,8 @@ export const validateNavigationSession = async validator => {
     return await validateAuthSession(validator)
   } catch (error) {
     console.error('[auth] 登录态校验服务暂不可用', error)
-    return true
+    // 三态：校验服务不可用（网络失败/5xx）时既不确认也不否定登录，
+    // 路由守卫据此"放行但不跳转"——fail-open 只放行受保护路由，不在 guest-only 路由上替用户跳转
+    return 'unavailable'
   }
 }

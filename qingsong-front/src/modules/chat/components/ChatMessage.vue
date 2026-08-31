@@ -165,6 +165,12 @@
             <CheckIcon v-else class="btn-icon success" />
             <span class="btn-text">{{ copied ? '已复制' : '复制' }}</span>
           </button>
+          <button v-if="favoriteMessageNo" class="action-btn favorite-btn" :class="{ on: isFavorited }"
+            @click="toggleFavorite" :title="isFavorited ? '取消收藏' : '收藏本条消息'" :disabled="props.loading">
+            <StarIconSolid v-if="isFavorited" class="btn-icon" />
+            <StarIcon v-else class="btn-icon" />
+            <span class="btn-text">{{ isFavorited ? '已收藏' : '收藏' }}</span>
+          </button>
           <button class="action-btn share-btn" @click="openShare" :disabled="props.loading" title="分享本条消息为图片">
             <PhotoIcon class="btn-icon" />
             <span class="btn-text">分享图片</span>
@@ -243,15 +249,16 @@ import {
   MinusIcon,
   PlusIcon,
   ArrowsPointingOutIcon,
-  XMarkIcon
+  XMarkIcon,
+  StarIcon
 } from '@heroicons/vue/24/outline'
+import { StarIcon as StarIconSolid } from '@heroicons/vue/24/solid'
 import MessageShareModal from './MessageShareModal.vue'
-import 'highlight.js/styles/github-dark.css'
 import { useMessage } from 'naive-ui'
 import { authService } from '@/services/authService'
 import { generateUserAvatar, generateAIAvatar, buildAvatarUrl } from '../../../shared/utils/index.js'
 import { useChatMessageContent } from '../composables/useChatMessageContent.js'
-import { useTtsPlayback } from '../composables/index.js'
+import { useTtsPlayback, useFavoriteMessages } from '../composables/index.js'
 import { shouldShowMessageTimestamp } from '../utils/index.js'
 
 const props = defineProps({
@@ -314,6 +321,20 @@ const toggleMessagePlay = () => {
 
 const downloadMessage = async () => {
   await ttsPlayback.downloadAudio(props.message, messageApi)
+}
+
+// 收藏：只有拿到服务端 messageNo 的消息才可收藏（本地临时 ID 后端查不到）
+const favoriteMessages = useFavoriteMessages()
+const favoriteMessageNo = computed(() => {
+  const no = props.message?.messageNo
+  return no ? String(no) : null
+})
+const isFavorited = computed(() =>
+  favoriteMessageNo.value ? favoriteMessages.isFavorited(favoriteMessageNo.value) : false
+)
+const toggleFavorite = () => {
+  if (!favoriteMessageNo.value) return
+  favoriteMessages.toggleFavorite(favoriteMessageNo.value, messageApi)
 }
 
 onBeforeUnmount(() => {
@@ -1934,6 +1955,17 @@ const saveEdit = () => {
         color: var(--chat-accent, #3b82f6);
       }
 
+      &.favorite-btn:hover:not(:disabled):not(.on) {
+        border-color: var(--chat-favorite, #d97706);
+        color: var(--chat-favorite, #d97706);
+      }
+
+      &.favorite-btn.on {
+        background: var(--chat-favorite-tint, #fef3c7);
+        border-color: var(--chat-favorite-on, #f59e0b);
+        color: var(--chat-favorite, #d97706);
+      }
+
       &.share-btn:hover:not(:disabled) {
         border-color: #8b5cf6;
         color: #7c3aed;
@@ -2502,7 +2534,6 @@ const saveEdit = () => {
     border: 1px solid var(--chat-table-border, #e5e7eb);
     border-radius: 10px;
     background: var(--chat-table-bg, #fff);
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
     box-shadow: 0 4px 12px color-mix(in srgb, var(--chat-shadow-color, #0f172a) 5%, transparent);
     position: relative;
 
@@ -2529,16 +2560,26 @@ const saveEdit = () => {
   :deep(table) {
     width: 100%;
     min-width: 520px;
-    border-collapse: collapse;
+    /* separate 单线模型：单元格只描右/下边，外圈由 wrapper 边框收口，
+       避免 collapse 模式下 cell 边框与 wrapper 边框叠成双线，且 sticky 表头边框不丢失 */
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 13px;
     line-height: 1.55;
 
     th,
     td {
-      border: 1px solid var(--chat-table-border, #e5e7eb);
-      padding: 9px 11px;
+      border-right: 1px solid var(--chat-table-border, #e5e7eb);
+      border-bottom: 1px solid var(--chat-table-border, #e5e7eb);
+      padding: 9px 12px;
       transition: background-color 0.2s ease;
       vertical-align: middle;
+    }
+
+    /* 最右列与表体末行不再描边，直接贴住 wrapper 边框 */
+    th:last-child,
+    td:last-child {
+      border-right: none;
     }
 
     /* 解析出的表格语义区分：表头居中，正文单元格左对齐（长文本更易读） */
@@ -2569,8 +2610,8 @@ const saveEdit = () => {
         background-color: var(--chat-table-stripe, #fbfdff);
       }
 
-      &:hover {
-        background-color: var(--chat-table-stripe, #eef4f7);
+      &:last-child td {
+        border-bottom: none;
       }
     }
 
@@ -2611,6 +2652,20 @@ const saveEdit = () => {
 overflow-x: auto;
       overflow-y: auto;
       overscroll-behavior: auto;
+
+      &::-webkit-scrollbar {
+        width: var(--scrollbar-size-sm);
+        height: var(--scrollbar-size-sm);
+      }
+
+      &::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      &::-webkit-scrollbar-thumb {
+        background: var(--scrollbar-thumb);
+        border-radius: 2px;
+      }
 
       svg {
         display: block;
@@ -2769,10 +2824,26 @@ overflow-x: auto;
     font-size: 0.9em;
   }
 
-  /* 水平滚动条优化：代码块/表格用小档尺寸 */
+  /* 水平滚动条优化 */
   :deep(pre),
   :deep(.table-wrapper) {
-    --scrollbar-size: var(--scrollbar-size-sm);
+    &::-webkit-scrollbar {
+      height: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 4px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+
+      &:hover {
+        background: #94a3b8;
+      }
+    }
   }
 
   @media (max-width: 768px) {

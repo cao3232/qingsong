@@ -2,6 +2,7 @@ package com.qingsong.ai.service.impl.chat;
 
 import com.alibaba.fastjson.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.qingsong.ai.entity.exception.BusinessException;
 import com.qingsong.ai.entity.po.ChatHistory;
 import com.qingsong.ai.entity.po.chat.AiChatMessage;
@@ -123,7 +124,8 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
 
         AiChatSession session = findSessionBySessionNo(sessionNo, true, true);
         if (session == null || isDeleted(session)) {
-            return List.of();
+            // 返回 null 区分"会话不存在/已删除"与"会话存在但无消息"，供上层转 404
+            return null;
         }
 
         List<AiChatMessage> messages = messageMapper.selectList(new QueryWrapper<AiChatMessage>()
@@ -369,6 +371,7 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
         history.setLastUserMessageNo(session.getLastUserMessageNo());
         history.setCreatedAt(session.getCreatedAt());
         history.setLastMessageAt(session.getLastMessageAt());
+        history.setStatus(session.getStatus());
         history.setExists(Boolean.TRUE);
         return history;
     }
@@ -587,6 +590,29 @@ public class ChatPersistenceServiceImpl implements ChatPersistenceService {
     }
     private boolean isDeleted(AiChatSession session) {
         return session.getDeleted() != null && session.getDeleted() == 1;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void markEscalated(String sessionNo, String reason) {
+        // 用 UpdateWrapper 定向更新（不加载实体），避免缓存重建实体缺失字段被 updateById 覆盖（如 deleted 被误置 0）
+        int updated = sessionMapper.update(null, new UpdateWrapper<AiChatSession>()
+                .eq("session_no", sessionNo)
+                .eq("deleted", 0)
+                .set("status", "escalated")
+                .set("updated_at", LocalDateTime.now()));
+        if (updated == 0) {
+            log.warn("markEscalated: 会话不存在或已删除, sessionNo={}", sessionNo);
+            return;
+        }
+        // 刷新 Redis 会话元数据缓存，让历史列表透出 escalated 标记
+        AiChatSession fresh = sessionMapper.selectOne(new QueryWrapper<AiChatSession>()
+                .eq("session_no", sessionNo)
+                .last("limit 1"));
+        if (fresh != null) {
+            refreshSessionMetaCache(fresh);
+        }
+        log.info("会话已标记转人工, sessionNo={}, reason={}", sessionNo, reason);
     }
 
     private String generateMessageNo() {

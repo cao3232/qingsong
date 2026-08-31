@@ -188,7 +188,7 @@
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.2.0</version> <!-- 使用兼容Jakarta EE的版本 -->
+            <version>2.8.17</version> <!-- Spring Boot 3.5.x 兼容 -->
         </dependency>
         <!--添加 redssion-->
         <dependency>

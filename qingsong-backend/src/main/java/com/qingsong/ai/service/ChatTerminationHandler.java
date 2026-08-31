@@ -76,6 +76,26 @@ public class ChatTerminationHandler {
     }
 
     /**
+     * 累积流式内容并在终止时执行「持久化 + 释放锁」收尾（对外公开入口）。
+     *
+     * <p>供不走 {@code ChatService.executeStreamingChat} 主链路的业务（如智能客服
+     * {@code CustomerServiceController}）复用与主聊天完全一致的收尾语义：
+     * 正常/异常/取消三路径下持久化 + 解锁最多执行一次，且收尾完成后下游才看到终止信号。</p>
+     *
+     * @param source  原始流式响应
+     * @param request 聊天请求上下文（type/role/chatId/chatOptions.model/lock 用于落库与解锁）
+     * @return 带收尾保障的流
+     */
+    public Flux<ChatStreamPart> accumulateWithTermination(Flux<ChatStreamPart> source, ChatRequest request) {
+        return accumulateChatParts(source, (signalType, content) -> {
+            if (signalType == SignalType.CANCEL) {
+                handleCancel(request.getChatId());
+            }
+            return completeTermination(request, signalType, content);
+        });
+    }
+
+    /**
      * 累积流式内容并在流终止时执行一次性收尾回调。
      *
      * @param source      原始流式响应

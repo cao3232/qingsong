@@ -85,6 +85,17 @@ mail:
   agent-to: ${MAIL_AGENT_TO}      # EmailTool 模板邮件收件人
   job-to: ${MAIL_JOB_TO}          # 定时任务（TimeJob / TopicJob）收件人
 
+# RAG 检索参数（可据评估集调优）
+qingsong:
+  rag:
+    top-k: 5                      # 向量检索返回切片数
+    similarity-threshold: 0.3     # 相似度阈值（越低召回越多）
+    reembed-batch: 10             # 定时重试嵌入每批处理条数
+    chunk-size: 800               # 文本切分每块 token 数
+    min-chunk-size-chars: 350     # 低于该字符数的块丢弃
+    min-chunk-length-to-embed: 5  # 低于该 token 数的块不嵌入
+    max-num-chunks: 10000         # 单文档最多切出的块数
+
 management:
   endpoints:
     web:

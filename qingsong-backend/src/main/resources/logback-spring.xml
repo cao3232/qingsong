@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 本地日志配置：控制台 + 文件双输出
+     - 业务包（com.qingsong.ai）debug 进控制台 + 文件（观察 normalizeStatus / 上下文窗口等）
+     - 第三方框架（Spring AI / MyBatis / Netty 等）debug 只进控制台，避免刷爆文件
+     - 其余日志默认 info 进控制台 + 文件
+     可通过环境变量覆盖：LOG_FILE / LOG_FILE_MAX_SIZE / LOG_FILE_MAX_HISTORY -->
+<configuration>
+
+    <!-- 引入 Spring Boot 默认日志模式变量（CONSOLE_LOG_PATTERN / FILE_LOG_PATTERN） -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <property name="LOG_FILE" value="${LOG_FILE:-logs/qingsong.log}"/>
+    <property name="LOG_FILE_MAX_SIZE" value="${LOG_FILE_MAX_SIZE:-20MB}"/>
+    <property name="LOG_FILE_MAX_HISTORY" value="${LOG_FILE_MAX_HISTORY:-30}"/>
+
+    <!-- 控制台输出 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- 本地文件输出：按天 + 大小滚动，滚动文件 gzip 压缩 -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_FILE}</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_FILE}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <maxFileSize>${LOG_FILE_MAX_SIZE}</maxFileSize>
+            <maxHistory>${LOG_FILE_MAX_HISTORY}</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${FILE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- 业务包：debug 进控制台 + 文件 -->
+    <logger name="com.qingsong.ai" additivity="false">
+        <level value="debug"/>
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+
+    <!-- 第三方框架 debug 只进控制台，不写文件（避免刷爆） -->
+    <logger name="org.springframework.ai" additivity="false">
+        <level value="debug"/>
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+    <logger name="com.baomidou.mybatisplus" additivity="false">
+        <level value="debug"/>
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+    <logger name="org.springframework.web.reactive.function.client.ExchangeFunctions" additivity="false">
+        <level value="debug"/>
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+    <logger name="reactor.netty.http.client" additivity="false">
+        <level value="debug"/>
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+    <logger name="io.netty" additivity="false">
+        <level value="debug"/>
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
+    <!-- 其余日志：默认 info，进控制台 + 文件 -->
+    <root level="${LOG_LEVEL_ROOT:-info}">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </root>
+
+</configuration>
